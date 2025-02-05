@@ -6,3 +6,9 @@
 # Datasource local storage ignored files
 /dataSources/
 /dataSources.local.xml
+*.iml           # IntelliJ IDEA project files (if applicable)
+build/          # Build output directories
+cmake-build-*/  # CMake build directories
+*.exe           # Executables
+*.o             # Object files
+*.obj  
