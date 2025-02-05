@@ -11,7 +11,6 @@ import "core:math"
 
 //TODO MAKE THESE NOT GLOBAL
 running := true
-//AMIWORKINGIDIOT
 Global_Back_Buffer:=win32_offscreen_buffer{}
 GlobalSecondaryBuffer: ^IDirectSoundBuffer
 
