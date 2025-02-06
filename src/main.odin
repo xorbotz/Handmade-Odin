@@ -7,6 +7,10 @@ import vmem "core:mem/virtual"
 import "core:mem"
 import "core:dynlib"
 import "core:math"
+import "core:strings"
+import "core:strconv"
+import "base:intrinsics"
+
 //import dx "vendor:directx"
 
 //TODO MAKE THESE NOT GLOBAL
@@ -55,12 +59,16 @@ win32FillSoundBuffer::proc(SoundOutput: ^win32_sound_output, SampleIndextoLock:w
             test:=math.sin_f32(2*math.PI*f32(SoundOutput.RunningSampleIndex)/f32(186))
             test16:= i16(1000*test)
 
-            SampleValue2 := test16
+            SampleValue2:= test16
             SampleValue:i16 = ((SoundOutput.RunningSampleIndex/cast(u32)SoundOutput.SquareWavePeriod/2)%2)==0?SoundOutput.SoundLevel:-1*SoundOutput.SoundLevel
 
             //fmt.println(SampleValue2, SampleValue)
             //final:i32= i32(SampleValue)//(cast(i32)(SampleValue))<<16|cast(i32)SampleValue
-            final:i32= i32(SampleValue)<<16|i32(SampleValue)
+            //PUT THE SHIFT BACK IN!!!!
+            temp:=cast(i32)SampleValue
+            temp = temp<<16
+            temp2:=i32(i32(SampleValue)&0b00000000000000001111111111111111)
+            final: = temp|temp2
             SampleOut[SampleIndex] = final
             SoundOutput.RunningSampleIndex+=1
 
@@ -72,7 +80,11 @@ win32FillSoundBuffer::proc(SoundOutput: ^win32_sound_output, SampleIndextoLock:w
             SampleValue2 := test16
             SampleValue:i16 = ((SoundOutput.RunningSampleIndex/cast(u32)SoundOutput.SquareWavePeriod/2)%2)==0?SoundOutput.SoundLevel:-1*SoundOutput.SoundLevel
             //fmt.println(SampleValue2, SampleValue)
-            final:i32= i32(SampleValue)<<16|i32(SampleValue)
+            //final:i32= i32(SampleValue)<<16|i32(SampleValue)
+            temp:=cast(i32)SampleValue
+            temp = temp<<16
+            temp2:=i32(i32(SampleValue)&0b00000000000000001111111111111111)
+            final: = temp|temp2
             SampleOut2[SampleIndex] = final
             SoundOutput.RunningSampleIndex+=1
         }
@@ -345,6 +357,8 @@ main :: proc() {
         hInstance = instance,
         lpszClassName = class_name,
     }
+    PerfCounterFrequency : w.LARGE_INTEGER
+    w.QueryPerformanceFrequency(&PerfCounterFrequency)
     class:=w.RegisterClassW(&cls)
     assert(class!=0, "calss iddn't register oh no")
     GameWindow:=w.CreateWindowExW(w.WS_EX_LEFT,cls.lpszClassName,w.L("Game WIndow DUde"),w.WS_OVERLAPPEDWINDOW|w.WS_VISIBLE,w.CW_USEDEFAULT,w.CW_USEDEFAULT,w.CW_USEDEFAULT,w.CW_USEDEFAULT,nil,nil,instance,nil)
@@ -361,7 +375,7 @@ main :: proc() {
         offsetY:i32 = 0
     SoundOutput : win32_sound_output
         SoundOutput.SamplesPerSecond = 48000
-        SoundOutput.Hz = 880
+        SoundOutput.Hz = 440
         SoundOutput.RunningSampleIndex=0
         SoundOutput.SquareWaveCounter = 0
 
@@ -374,7 +388,13 @@ main :: proc() {
         InitDSound(GameWindow,SoundOutput.SamplesPerSecond,48000*size_of(i16)*2,48000*size_of(i16)*2)
          soundisPlaying := false
 
+        LastCounter:w.LARGE_INTEGER
+        w.QueryPerformanceCounter(&LastCounter)
+        //TODO This probably can be replaced by newer code
+        LastCycleCount := intrinsics.read_cycle_counter()
+
         for running {
+
             for w.PeekMessageW(&msg,nil,0,0,w.PM_REMOVE){
             //TODO could add a quit case here!
 
@@ -469,7 +489,24 @@ main :: proc() {
             CopyBufferToWindow(&Global_Back_Buffer,DevContext,Dimension.width,Dimension.height, 0,0,Dimension.width,Dimension.height)
             w.ReleaseDC(GameWindow,DevContext)
             offsetX+=2
+
             //offsetY+=2
+            EndCycleCount:= intrinsics.read_cycle_counter()
+            CycleElapsed:=EndCycleCount - LastCycleCount
+            EndCounter : w.LARGE_INTEGER
+            w.QueryPerformanceCounter(&EndCounter)
+            CounterElapsed: = EndCounter-LastCounter
+            Time:=1000*CounterElapsed/PerfCounterFrequency
+           //TODO remove debug code
+            temp2:[4]byte
+            temp3:[4]byte
+            MCPF:= strconv.itoa(temp3[:],(int(CycleElapsed)/(1000*1000)))
+            temp: = strings.concatenate({"Mili/Fram ",strconv.itoa(temp2[:],int(Time)),"CyclesElapsed(10^6): ",MCPF,"\n"})
+            if Time>10{
+            w.OutputDebugStringA(strings.clone_to_cstring(temp,context.temp_allocator))//"Counter Elapsed: ",CounterElapsed," PerfCountF ", PerfCounterFrequency,"This took ",Time," miliSeconds")
+            }
+            LastCounter = EndCounter
+            LastCycleCount = EndCycleCount
     }
  }
     else{
