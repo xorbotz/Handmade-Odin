@@ -12,7 +12,21 @@ import "core:strconv"
 import "base:intrinsics"
 
 //import dx "vendor:directx"
-
+/*TODO
+    Save Game Locations
+    Hand on exe file
+    Asset loading path
+    Threading
+    Raw input (Support for multiple keyboards...)
+    Sleep and timeBegin (don't kill a pc battery)
+    Clip Cursor
+    Fullscreen
+    WM_SetupCursor
+    WM_Activeapp
+    BlitSpeed improvements
+    Hardware Accel (OpenGL/Direct3d...)
+    GetKeyboardLayout (Other Keyboards)
+*/
 //TODO MAKE THESE NOT GLOBAL
 running := true
 Global_Back_Buffer:=win32_offscreen_buffer{}
@@ -22,6 +36,7 @@ win32_window_dimensions::struct{
     width:i32,
     height:i32,
 }
+
 win32_sound_output::struct{
     SamplesPerSecond:u32,
     Hz:int,
@@ -31,8 +46,8 @@ win32_sound_output::struct{
     BytesPerSample: u32,
     SecondaryBufferSize :u32,
     SoundLevel:i16,
-
 }
+
 win32FillSoundBuffer::proc(SoundOutput: ^win32_sound_output, SampleIndextoLock:w.DWORD, BytesToWrite: w.DWORD){
     Region1: w.VOID
     Region1Size: w.DWORD
@@ -118,12 +133,12 @@ InitDSound::proc(Window: w.HWND, SamplesPerSecond: u32, PrimaryBufferSize :u32, 
 
     }
     if(Window!=nil){
-    scl_res := DirectSound->SetCooperativeLevel(Window,DSSCL_PRIORITY )
-    if scl_res < 0 {
-        fmt.eprintf("Error in SetCooperativeLevel: 0x%X\n",u32(u64(scl_res) & 0x0000_0000_FFFF_FFFF))
+        scl_res := DirectSound->SetCooperativeLevel(Window,DSSCL_PRIORITY )
+        if scl_res < 0 {
+            fmt.eprintf("Error in SetCooperativeLevel: 0x%X\n",u32(u64(scl_res) & 0x0000_0000_FFFF_FFFF))
         return
-
-    }}
+        }
+ }
     BufferDescription : DSBUFFERDESC={
         dwSize = size_of(DSBUFFERDESC),
         dwFlags = DSBCAPS_PRIMARYBUFFER,
@@ -136,21 +151,20 @@ InitDSound::proc(Window: w.HWND, SamplesPerSecond: u32, PrimaryBufferSize :u32, 
         fmt.eprintf("Error in SetCooperativeLevel: 0x%X\n",u32(u64(cb_res) & 0x0000_0000_FFFF_FFFF))
         return
     }
-    // create a primary buffer
-    //create our write buffer
 
     sf_res:= PrimaryBuffer->SetFormat(&WaveFormat)
     if sf_res < 0 {
         fmt.eprintf("Error in SetCooperativeLevel: 0x%X\n",u32(u64(sf_res) & 0x0000_0000_FFFF_FFFF))
         return
     }
+
     SecondaryBufferDescription : DSBUFFERDESC={
         dwSize = size_of(DSBUFFERDESC),
         dwFlags = DSBCAPS_GETCURRENTPOSITION2,
         dwBufferBytes = SecondaryBufferSize,
         lpwfxFormat = &WaveFormat,
-
     }
+
     sb_err:= DirectSound -> CreateSoundBuffer(&SecondaryBufferDescription,&GlobalSecondaryBuffer,nil)
 
     if sb_err < 0 {
@@ -160,8 +174,6 @@ InitDSound::proc(Window: w.HWND, SamplesPerSecond: u32, PrimaryBufferSize :u32, 
     else{
         fmt.eprint("2ndary buffer created successfully")
     }
-
-//start playing
 
 }
 
@@ -187,26 +199,7 @@ win32_offscreen_buffer::struct{
 
 
 
-RenderWeirdGradient::proc(Buffer: ^win32_offscreen_buffer, offsetX,offsetY,width:i32){
 
-    Rowz:[^]u8 = cast([^]u8)Buffer.memory
-    //Rowz:^u8 = cast(^u8)Bitmapmemory
-    Pitch: = Buffer.Pitch
-    //Pitch:=4*width
-    for y:i32=0; y< Buffer.Height;y+=1{
-    Pixel:[^]u32 = cast([^]u32)Rowz
-    for x:i32 = 0;x<Buffer.Width;x+=1{
-            Blue : = cast(u8)(x+offsetX)
-            Green: = cast(u8)(y+offsetY)
-            final:u32= ((cast(u32)Green)<<8|cast(u32)Blue)
-            Red:u32 = 0
-            Pixel[(y*Pitch)+x]= final
-        }
-    //    Rowz = mem.ptr_offset(Rowz,Pitch)
-
-    }
-
-}
 CopyBufferToWindow:: proc (Buffer:^win32_offscreen_buffer,DevContext: w.HDC, WindowWidth:i32,WindowHeight:i32, x,y,width,height:i32){
 
     w.StretchDIBits(DevContext,
@@ -452,9 +445,12 @@ main :: proc() {
                 Vibration.wLeftMotorSpeed = 60000
                 w.XInputSetState(cast(w.XUSER)0,&Vibration)
             }
-
-            RenderWeirdGradient(&Global_Back_Buffer,offsetX,offsetY,Global_Back_Buffer.Width)
-            //NOTE DirectSound Output Test
+            Buffer:game_offscreen_buffer
+            Buffer.memory = Global_Back_Buffer.memory
+            Buffer.Width = Global_Back_Buffer.Width
+            Buffer.Height = Global_Back_Buffer.Height
+            Buffer.Pitch = Global_Back_Buffer.Pitch
+            GameUpdateAndRender(&Buffer,offsetX,offsetY)
             PlayerCursor: w.DWORD
             WriteCursor: w.DWORD
             gp_ok:= GlobalSecondaryBuffer->GetCurrentPosition(&PlayerCursor, &WriteCursor)
@@ -488,9 +484,10 @@ main :: proc() {
             Dimension := GetWindowDimension(GameWindow)
             CopyBufferToWindow(&Global_Back_Buffer,DevContext,Dimension.width,Dimension.height, 0,0,Dimension.width,Dimension.height)
             w.ReleaseDC(GameWindow,DevContext)
-            offsetX+=2
 
-            //offsetY+=2
+            offsetX+=2
+            offsetY+=2
+
             EndCycleCount:= intrinsics.read_cycle_counter()
             CycleElapsed:=EndCycleCount - LastCycleCount
             EndCounter : w.LARGE_INTEGER

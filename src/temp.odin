@@ -1,4 +1,5 @@
 package main
+//This file is for old windows code with pointer math. It will eventually all go away.
 /*
 Rowz:[^]u8 = cast([^]u8)Buffer.memory
 //Rowz:^u8 = cast(^u8)Bitmapmemory
