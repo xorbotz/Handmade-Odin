@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <project version="4">
   <component name="com.lasagnerd.odin.settings.OdinSdkConfigPersistentState">
-    <option name="sdkPath" value="$PROJECT_DIR$/../../../../Odin" />
+    <option name="sdkPath" value="$PROJECT_DIR$/../../../../../Odin" />
     <option name="semanticAnnotatorEnabled" value="true" />
     <option name="odinCheckerEnabled" value="true" />
     <option name="debuggerId" value="odin-win-db-dap" />
