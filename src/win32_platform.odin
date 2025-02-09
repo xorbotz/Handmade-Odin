@@ -366,7 +366,7 @@ main :: proc() {
         offsetX:i32=0
 
         offsetY:i32 = 0
-    SoundOutput : win32_sound_output
+        SoundOutput : win32_sound_output
         SoundOutput.SamplesPerSecond = 48000
         SoundOutput.Hz = 440
         SoundOutput.RunningSampleIndex=0
