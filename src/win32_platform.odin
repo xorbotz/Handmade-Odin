@@ -48,7 +48,7 @@ win32_sound_output::struct{
     SoundLevel:i16,
 }
 
-win32FillSoundBuffer::proc(SoundOutput: ^win32_sound_output, SampleIndextoLock:w.DWORD, BytesToWrite: w.DWORD){
+win32FillSoundBuffer::proc(SoundOutput: ^win32_sound_output, SampleIndextoLock:w.DWORD, BytesToWrite: w.DWORD, SourceBuffer: ^game_output_sound_buffer){
     Region1: w.VOID
     Region1Size: w.DWORD
     Region2: w.VOID
@@ -65,8 +65,9 @@ win32FillSoundBuffer::proc(SoundOutput: ^win32_sound_output, SampleIndextoLock:w
     // Each sample is 32 bit, 16 left and 16 right channel
         temp:[^]i16 = cast([^]i16)Region1
         temp2:[^]i16 = cast([^]i16)Region2
-        SampleOut :[^]i32 = cast([^]i32)temp
-        SampleOut2 :[^]i32 = cast([^]i32)temp2
+        DestSample :[^]i32 = cast([^]i32)temp
+        DestSample2 :[^]i32 = cast([^]i32)temp2
+        SourceSample:[^]i32 = SourceBuffer.SampleOut
         Region1SampleCount: w.DWORD = Region1Size/cast(u32)SoundOutput.BytesPerSample
         Region2SampleCount: w.DWORD = Region2Size/cast(u32)SoundOutput.BytesPerSample
 
@@ -84,7 +85,7 @@ win32FillSoundBuffer::proc(SoundOutput: ^win32_sound_output, SampleIndextoLock:w
             temp = temp<<16
             temp2:=i32(i32(SampleValue)&0b00000000000000001111111111111111)
             final: = temp|temp2
-            SampleOut[SampleIndex] = final
+            DestSample[SampleIndex] = SourceSample[SampleIndex]
             SoundOutput.RunningSampleIndex+=1
 
         }
@@ -100,7 +101,8 @@ win32FillSoundBuffer::proc(SoundOutput: ^win32_sound_output, SampleIndextoLock:w
             temp = temp<<16
             temp2:=i32(i32(SampleValue)&0b00000000000000001111111111111111)
             final: = temp|temp2
-            SampleOut2[SampleIndex] = final
+            //TODO I think this Sampleindex needs on offset based on the size of region1 sample count
+            DestSample2[SampleIndex] = SourceSample[SampleIndex+Region1SampleCount]
             SoundOutput.RunningSampleIndex+=1
         }
         ulock_ok:=GlobalSecondaryBuffer->Unlock(Region1,Region1Size,Region2,Region2Size)
@@ -445,11 +447,14 @@ main :: proc() {
                 Vibration.wLeftMotorSpeed = 60000
                 w.XInputSetState(cast(w.XUSER)0,&Vibration)
             }
-            Samples:
+            //TEMP CODE TO PUT THE BUFFER ON THE STACK - TODO Replace
+            TempS :[48000/30*2]i32
+            Samples:[^]i32
+            Samples = raw_data(TempS[:])
             SoundBuffer :game_output_sound_buffer
             SoundBuffer.SamplesPerSecond = SoundOutput.SamplesPerSecond
             SoundBuffer.SampleCount = SoundBuffer.SamplesPerSecond/30
-            SoundBuffer.SampleOut = SoundOutput.
+            SoundBuffer.SampleOut = Samples
 
 
             Buffer:game_offscreen_buffer
@@ -457,7 +462,7 @@ main :: proc() {
             Buffer.Width = Global_Back_Buffer.Width
             Buffer.Height = Global_Back_Buffer.Height
             Buffer.Pitch = Global_Back_Buffer.Pitch
-            GameUpdateAndRender(&Buffer,offsetX,offsetY)
+            GameUpdateAndRender(&Buffer,offsetX,offsetY, &SoundBuffer)
             PlayerCursor: w.DWORD
             WriteCursor: w.DWORD
             gp_ok:= GlobalSecondaryBuffer->GetCurrentPosition(&PlayerCursor, &WriteCursor)
@@ -479,7 +484,7 @@ main :: proc() {
             } else{
              BytesToWrite = PlayerCursor - SampleIndextoLock
             }
-           win32FillSoundBuffer(&SoundOutput,SampleIndextoLock,BytesToWrite)
+           win32FillSoundBuffer(&SoundOutput,SampleIndextoLock,BytesToWrite, &SoundBuffer)
 
            if(!soundisPlaying){
 

@@ -25,17 +25,17 @@ RenderWeirdGradient::proc(Buffer: ^game_offscreen_buffer, offsetX,offsetY:i32){
 }
 
 game_output_sound_buffer::struct{
-    SamplesPerSecond:int,
-    SampleCount:int,
+    SamplesPerSecond:u32,
+    SampleCount:u32,
     SampleOut:[^]i32
 }
 
 GameOutputSound::proc(SoundBuffer: ^game_output_sound_buffer){
 
     Soundlevel :i16=3000
-    ToneHz: = 256
-    SquareWavePeriod:int  = SoundBuffer.SamplesPerSecond/ToneHz
-    for SampleIndex:= 0; SampleIndex<SoundBuffer.SampleCount;SampleIndex+=1{
+    ToneHz:u32 = 256
+    SquareWavePeriod:u32  = SoundBuffer.SamplesPerSecond/ToneHz
+    for SampleIndex:u32= 0; SampleIndex<SoundBuffer.SampleCount;SampleIndex+=1{
 
         SampleValue:i16 = ((u32(SampleIndex)/cast(u32)SquareWavePeriod/2)%2)==0?Soundlevel:-1*Soundlevel
 
@@ -59,9 +59,9 @@ GameOutputSound::proc(SoundBuffer: ^game_output_sound_buffer){
     }*/
 
 }
-GameUpdateAndRender::proc(Buffer: ^game_offscreen_buffer, offsetX: i32, offsetY:i32){
+GameUpdateAndRender::proc(Buffer: ^game_offscreen_buffer, offsetX: i32, offsetY:i32, SoundBuffer: ^game_output_sound_buffer){
     //TODO Possibly implement the game to be told where in time to put sound
-    //GameOutputSound(SoundBuffer, SampleCountToOutput)
+    GameOutputSound(SoundBuffer)
     RenderWeirdGradient(Buffer,offsetX,offsetY)
 }
 
