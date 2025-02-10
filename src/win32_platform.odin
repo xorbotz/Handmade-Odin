@@ -368,7 +368,7 @@ main :: proc() {
         offsetY:i32 = 0
         SoundOutput : win32_sound_output
         SoundOutput.SamplesPerSecond = 48000
-        SoundOutput.Hz = 440
+        SoundOutput.Hz = 880
         SoundOutput.RunningSampleIndex=0
         SoundOutput.SquareWaveCounter = 0
 
@@ -445,6 +445,13 @@ main :: proc() {
                 Vibration.wLeftMotorSpeed = 60000
                 w.XInputSetState(cast(w.XUSER)0,&Vibration)
             }
+            Samples:
+            SoundBuffer :game_output_sound_buffer
+            SoundBuffer.SamplesPerSecond = SoundOutput.SamplesPerSecond
+            SoundBuffer.SampleCount = SoundBuffer.SamplesPerSecond/30
+            SoundBuffer.SampleOut = SoundOutput.
+
+
             Buffer:game_offscreen_buffer
             Buffer.memory = Global_Back_Buffer.memory
             Buffer.Width = Global_Back_Buffer.Width
