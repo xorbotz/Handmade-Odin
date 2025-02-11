@@ -87,6 +87,7 @@ win32FillSoundBuffer::proc(SoundOutput: ^win32_sound_output, SampleIndextoLock:w
     Region1Size: w.DWORD
     Region2: w.VOID
     Region2Size: w.DWORD
+    fmt.println(BytesToWrite)
 
     lock_ok: = GlobalSecondaryBuffer->Lock(SampleIndextoLock, BytesToWrite,
     &Region1,&Region1Size,
@@ -94,7 +95,7 @@ win32FillSoundBuffer::proc(SoundOutput: ^win32_sound_output, SampleIndextoLock:w
     if lock_ok < 0 {
     // fmt.eprintf("Error in Lock: 0x%X\n",u32(u64(lock_ok) & 0x0000_0000_FFFF_FFFF))
     //  jreturn
-    }else{
+    }
     //TODO Delete
     // Each sample is 32 bit, 16 left and 16 right channel
         temp:[^]i16 = cast([^]i16)Region1
@@ -104,7 +105,7 @@ win32FillSoundBuffer::proc(SoundOutput: ^win32_sound_output, SampleIndextoLock:w
         SourceSample:[^]i32 = SourceBuffer.SampleOut
         Region1SampleCount: w.DWORD = Region1Size/cast(u32)SoundOutput.BytesPerSample
         Region2SampleCount: w.DWORD = Region2Size/cast(u32)SoundOutput.BytesPerSample
-        fmt.println(Region1SampleCount)
+ //       fmt.println(Region1SampleCount)
 
         for SampleIndex:w.DWORD = 0; SampleIndex<Region1SampleCount+Region2SampleCount;SampleIndex+=1{
 //for SampleIndex:w.DWORD = 0; SampleIndex<Region1SampleCount;SampleIndex+=1{
@@ -118,16 +119,18 @@ win32FillSoundBuffer::proc(SoundOutput: ^win32_sound_output, SampleIndextoLock:w
                 DestSample2[SampleIndex-Region1SampleCount] = SourceSample[SampleIndex]//+Region1SampleCount]
             //    SoundOutput.RunningSampleIndex+=1
             }
-
             SoundOutput.RunningSampleIndex+=1
+            if SoundOutput.RunningSampleIndex ==480{
+                fmt.println("ITS 480")
+            }
         }
-        fmt.println("RunningSampleindex", SoundOutput.RunningSampleIndex)
+//        fmt.println("RunningSampleindex", SoundOutput.RunningSampleIndex)
         ulock_ok:=GlobalSecondaryBuffer->Unlock(Region1,Region1Size,Region2,Region2Size)
         if ulock_ok < 0 {
             fmt.eprintf("Error in GetCurrentPosition: 0x%X\n",u32(u64(ulock_ok) & 0x0000_0000_FFFF_FFFF))
             return
         }
-    }
+
 }
 InitDSound::proc(Window: w.HWND, SamplesPerSecond: u32, PrimaryBufferSize :u32, SecondaryBufferSize: u32){
     //TODO - REPLACE ALL OF THIS WITH MINIAUDIO. I DON't Have the time to do that yet but I think low level miniaudio is right
@@ -402,6 +405,7 @@ main :: proc() {
         InitDSound(GameWindow,SoundOutput.SamplesPerSecond,48000*size_of(i16)*2,48000*size_of(i16)*2)
 
         win32ClearBuffer(&SoundOutput)
+
          soundisPlaying := false
 
         LastCounter:w.LARGE_INTEGER
@@ -489,16 +493,23 @@ main :: proc() {
 
                 SampleIndextoLock  = (SoundOutput.RunningSampleIndex*cast(u32)SoundOutput.BytesPerSample)%SoundOutput.SecondaryBufferSize
                 TargerCursor:=(PlayerCursor+(SoundOutput.LatencySampleCount*SoundOutput.BytesPerSample))%SoundOutput.SecondaryBufferSize
-                fmt.println(SampleIndextoLock,TargerCursor)
+//            fmt.println(SoundOutput.RunningSampleIndex)
+            if SoundOutput.RunningSampleIndex==48000{
+                fmt.println(SampleIndextoLock,TargerCursor)}
                 //if(SampleIndextoLock == PlayerCursor){
 
                   //  BytesToWrite = 0
                 //}else
                 if SampleIndextoLock>TargerCursor{
+                    fmt.println("here")
                     BytesToWrite = SoundOutput.SecondaryBufferSize-SampleIndextoLock
                     BytesToWrite +=TargerCursor
                 } else{
                     BytesToWrite = TargerCursor - SampleIndextoLock
+                    if !SoundisValid{
+                        BytesToWrite = 0
+                    }
+
                 }
                 SoundisValid=true
 
