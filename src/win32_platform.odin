@@ -46,6 +46,7 @@ win32_sound_output::struct{
     BytesPerSample: u32,
     SecondaryBufferSize :u32,
     SoundLevel:i16,
+    LatencySampleCount:u32,
 }
 
 win32ClearBuffer::proc(SoundOutput: ^win32_sound_output){
@@ -95,7 +96,6 @@ win32FillSoundBuffer::proc(SoundOutput: ^win32_sound_output, SampleIndextoLock:w
     //  jreturn
     }else{
     //TODO Delete
-        fmt.println(Region1Size,Region2Size)
     // Each sample is 32 bit, 16 left and 16 right channel
         temp:[^]i16 = cast([^]i16)Region1
         temp2:[^]i16 = cast([^]i16)Region2
@@ -104,18 +104,24 @@ win32FillSoundBuffer::proc(SoundOutput: ^win32_sound_output, SampleIndextoLock:w
         SourceSample:[^]i32 = SourceBuffer.SampleOut
         Region1SampleCount: w.DWORD = Region1Size/cast(u32)SoundOutput.BytesPerSample
         Region2SampleCount: w.DWORD = Region2Size/cast(u32)SoundOutput.BytesPerSample
+        fmt.println(Region1SampleCount)
 
         for SampleIndex:w.DWORD = 0; SampleIndex<Region1SampleCount+Region2SampleCount;SampleIndex+=1{
+//for SampleIndex:w.DWORD = 0; SampleIndex<Region1SampleCount;SampleIndex+=1{
 
            if SampleIndex<Region1SampleCount{
-               temp9:= SourceSample[SampleIndex]
             DestSample[SampleIndex] = SourceSample[SampleIndex]
+            //   SoundOutput.RunningSampleIndex+=1
+
             }
             else{
                 DestSample2[SampleIndex-Region1SampleCount] = SourceSample[SampleIndex]//+Region1SampleCount]
+            //    SoundOutput.RunningSampleIndex+=1
             }
 
+            SoundOutput.RunningSampleIndex+=1
         }
+        fmt.println("RunningSampleindex", SoundOutput.RunningSampleIndex)
         ulock_ok:=GlobalSecondaryBuffer->Unlock(Region1,Region1Size,Region2,Region2Size)
         if ulock_ok < 0 {
             fmt.eprintf("Error in GetCurrentPosition: 0x%X\n",u32(u64(ulock_ok) & 0x0000_0000_FFFF_FFFF))
@@ -390,6 +396,7 @@ main :: proc() {
         SoundOutput.BytesPerSample = size_of(i16)*2
         SoundOutput.SecondaryBufferSize = SoundOutput.SamplesPerSecond*cast(u32)SoundOutput.BytesPerSample
         SoundOutput.SoundLevel = 1000
+        SoundOutput.LatencySampleCount = SoundOutput.SamplesPerSecond/15
 
 
         InitDSound(GameWindow,SoundOutput.SamplesPerSecond,48000*size_of(i16)*2,48000*size_of(i16)*2)
@@ -401,7 +408,9 @@ main :: proc() {
         w.QueryPerformanceCounter(&LastCounter)
         //TODO This probably can be replaced by newer code
         LastCycleCount := intrinsics.read_cycle_counter()
-        TempS :[]i32 = make_slice([]i32,SoundOutput.SecondaryBufferSize,context.temp_allocator)
+        TempS :[]i32 = make_slice([]i32,SoundOutput.SecondaryBufferSize,Global_Back_Buffer.arena_alloc)
+        Samples:[^]i32
+        Samples = raw_data(TempS[:])
 
         for running {
 
@@ -477,22 +486,25 @@ main :: proc() {
                 fmt.eprintf("Error in GetCurrentPosition: 0x%X\n",u32(u64(gp_ok) & 0x0000_0000_FFFF_FFFF))
                 return
             }
-            else{
+
                 SampleIndextoLock  = (SoundOutput.RunningSampleIndex*cast(u32)SoundOutput.BytesPerSample)%SoundOutput.SecondaryBufferSize
-                if(SampleIndextoLock == PlayerCursor){
-                    BytesToWrite = 0
-                }else if SampleIndextoLock>PlayerCursor{
+                TargerCursor:=(PlayerCursor+(SoundOutput.LatencySampleCount*SoundOutput.BytesPerSample))%SoundOutput.SecondaryBufferSize
+                fmt.println(SampleIndextoLock,TargerCursor)
+                //if(SampleIndextoLock == PlayerCursor){
+
+                  //  BytesToWrite = 0
+                //}else
+                if SampleIndextoLock>TargerCursor{
                     BytesToWrite = SoundOutput.SecondaryBufferSize-SampleIndextoLock
-                    BytesToWrite +=PlayerCursor
+                    BytesToWrite +=TargerCursor
                 } else{
-                    BytesToWrite = PlayerCursor - SampleIndextoLock
+                    BytesToWrite = TargerCursor - SampleIndextoLock
                 }
                 SoundisValid=true
-            }
+
 
 //            defer(delete(TempS))
-            Samples:[^]i32
-            Samples = raw_data(TempS[:])
+
             SoundBuffer :game_output_sound_buffer
             SoundBuffer.SamplesPerSecond = SoundOutput.SamplesPerSecond
             SoundBuffer.SampleCount = BytesToWrite/SoundOutput.BytesPerSample

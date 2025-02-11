@@ -33,7 +33,7 @@ game_output_sound_buffer::struct{
 GameOutputSound::proc(SoundBuffer: ^game_output_sound_buffer){
 
     Soundlevel :i16=3000
-    ToneHz:u32 = 880
+    ToneHz:u32 = 880*2
     SquareWavePeriod:u32  = SoundBuffer.SamplesPerSecond/ToneHz
     for SampleIndex:u32= 0; SampleIndex<SoundBuffer.SampleCount;SampleIndex+=1{
 
