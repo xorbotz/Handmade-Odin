@@ -32,6 +32,11 @@ running := true
 Global_Back_Buffer:=win32_offscreen_buffer{}
 GlobalSecondaryBuffer: ^IDirectSoundBuffer
 
+ProcessDidigtalButton::proc(XInputButtonState: w.XINPUT_GAMEPAD_BUTTON,OldState:^game_button_state,NewState:^game_button_state, ButtonBit:w.XINPUT_GAMEPAD_BUTTON_BIT){
+    NewState.HalfTransitionCount = OldState.EndedDown !=NewState.EndedDown?1:0
+//    NewState.EndedDown =(XInputButtonState & ButtonBit) == ButtonBit
+    NewState.EndedDown  =XInputButtonState& w.XINPUT_GAMEPAD_BUTTON{ButtonBit} == w.XINPUT_GAMEPAD_BUTTON{ButtonBit}
+}
 win32_window_dimensions::struct{
     width:i32,
     height:i32,
@@ -67,7 +72,6 @@ win32ClearBuffer::proc(SoundOutput: ^win32_sound_output){
         DestSample :[^]i32 = cast([^]i32)temp
         DestSample2 :[^]i32 = cast([^]i32)temp2
 
-
         for ByteIndex:w.DWORD =0;ByteIndex<Region1Size;ByteIndex+=1{
             temp[ByteIndex]=0
         }
@@ -82,12 +86,13 @@ win32ClearBuffer::proc(SoundOutput: ^win32_sound_output){
     }
 
 }
+//Something here isn't quite right when extracting it to the game layer but i don't know what
 win32FillSoundBuffer::proc(SoundOutput: ^win32_sound_output, SampleIndextoLock:w.DWORD, BytesToWrite: w.DWORD, SourceBuffer: ^game_output_sound_buffer){
     Region1: w.VOID
     Region1Size: w.DWORD
     Region2: w.VOID
     Region2Size: w.DWORD
-    fmt.println(BytesToWrite)
+ //   fmt.println(BytesToWrite)
 
     lock_ok: = GlobalSecondaryBuffer->Lock(SampleIndextoLock, BytesToWrite,
     &Region1,&Region1Size,
@@ -96,7 +101,7 @@ win32FillSoundBuffer::proc(SoundOutput: ^win32_sound_output, SampleIndextoLock:w
     // fmt.eprintf("Error in Lock: 0x%X\n",u32(u64(lock_ok) & 0x0000_0000_FFFF_FFFF))
     //  jreturn
     }
-    //TODO Delete
+
     // Each sample is 32 bit, 16 left and 16 right channel
         temp:[^]i16 = cast([^]i16)Region1
         temp2:[^]i16 = cast([^]i16)Region2
@@ -388,9 +393,6 @@ main :: proc() {
     if (GameWindow!=nil){
         msg:w.MSG
 
-        offsetX:i32=0
-
-        offsetY:i32 = 0
         SoundOutput : win32_sound_output
         SoundOutput.SamplesPerSecond = 48000
         SoundOutput.Hz = 440
@@ -405,25 +407,28 @@ main :: proc() {
 
 
         InitDSound(GameWindow,SoundOutput.SamplesPerSecond,48000*size_of(i16)*2,48000*size_of(i16)*2)
-        Temp2:[48000]i32
+        Temp2:^[48000]i32= new([48000]i32,Global_Back_Buffer.arena_alloc)
         TempS :[]i32 = make_slice([]i32,SoundOutput.SecondaryBufferSize,Global_Back_Buffer.arena_alloc)
         Samples:[^]i32
         Samples = raw_data(Temp2[:])
 
-        SoundBuffer :game_output_sound_buffer
-        SoundBuffer.SamplesPerSecond = SoundOutput.SamplesPerSecond
-        SoundBuffer.SampleCount = 1920//BytesToWrite/SoundOutput.BytesPerSample
-        SoundBuffer.SampleOut = Samples
 
 //        win32FillSoundBuffer(&SoundOutput,0,(SoundOutput.LatencySampleCount*SoundOutput.BytesPerSample),&SoundBuffer)
         win32ClearBuffer(&SoundOutput)
+        GlobalSecondaryBuffer->Play(0,0,0x01)
 
-         soundisPlaying := false
+         soundisPlaying := true
 
         LastCounter:w.LARGE_INTEGER
         w.QueryPerformanceCounter(&LastCounter)
         //TODO This probably can be replaced by newer code
         LastCycleCount := intrinsics.read_cycle_counter()
+        Input:[2]game_input
+        NewInput:^game_input = &Input[0]
+        //NewInput.Controllers
+        OldInput:^game_input=&Input[1]
+        OldController:^ game_controller_input
+        NewController:^ game_controller_input
 
         for running {
 
@@ -434,13 +439,15 @@ main :: proc() {
                 w.DispatchMessageW(&msg)
 
             }
-            //TODO POSSIBLY POLL MORE OFTEN
+           //TODO POSSIBLY POLL MORE OFTEN
             for ControllerIndex:w.DWORD = 0;ControllerIndex<w.XUSER_MAX_COUNT; ControllerIndex+=1{
                 ControllerState:w.XINPUT_STATE
                 //TODO - Only poll controllers when we know they are plugged in - you can do this with an HID flag
+                OldController = &OldInput.Controllers[ControllerIndex]
+                NewController= &NewInput.Controllers[ControllerIndex]
+
                 if cast(u32)w.XInputGetState(cast(w.XUSER)ControllerIndex,&ControllerState)==w.ERROR_SUCCESS{
                     Pad:^w.XINPUT_GAMEPAD = &ControllerState.Gamepad
-                   test: = 1
 
                     //I believe all of this is necessary to work with xInput and Bitmask
                     //I Know you can dereference Pad without ^ but I like doing it for clarity
@@ -448,32 +455,61 @@ main :: proc() {
                     Down :bool= Pad^.wButtons&w.XINPUT_GAMEPAD_BUTTON{w.XINPUT_GAMEPAD_BUTTON_BIT.DPAD_DOWN} == w.XINPUT_GAMEPAD_BUTTON{w.XINPUT_GAMEPAD_BUTTON_BIT.DPAD_DOWN}
                     Left :bool= Pad^.wButtons&w.XINPUT_GAMEPAD_BUTTON{w.XINPUT_GAMEPAD_BUTTON_BIT.DPAD_LEFT} == w.XINPUT_GAMEPAD_BUTTON{w.XINPUT_GAMEPAD_BUTTON_BIT.DPAD_LEFT}
                     Right :bool= Pad^.wButtons&w.XINPUT_GAMEPAD_BUTTON{w.XINPUT_GAMEPAD_BUTTON_BIT.DPAD_RIGHT} == w.XINPUT_GAMEPAD_BUTTON{w.XINPUT_GAMEPAD_BUTTON_BIT.DPAD_RIGHT}
-                    Start :bool= Pad^.wButtons&w.XINPUT_GAMEPAD_BUTTON{w.XINPUT_GAMEPAD_BUTTON_BIT.START} == w.XINPUT_GAMEPAD_BUTTON{w.XINPUT_GAMEPAD_BUTTON_BIT.START}
+//                    Start :bool= Pad^.wButtons&w.XINPUT_GAMEPAD_BUTTON{w.XINPUT_GAMEPAD_BUTTON_BIT.START} == w.XINPUT_GAMEPAD_BUTTON{w.XINPUT_GAMEPAD_BUTTON_BIT.START}
                     LeftShoulder :bool= Pad^.wButtons&w.XINPUT_GAMEPAD_BUTTON{w.XINPUT_GAMEPAD_BUTTON_BIT.LEFT_SHOULDER} == w.XINPUT_GAMEPAD_BUTTON{w.XINPUT_GAMEPAD_BUTTON_BIT.LEFT_SHOULDER}
                     RightShoulder :bool= Pad^.wButtons&w.XINPUT_GAMEPAD_BUTTON{w.XINPUT_GAMEPAD_BUTTON_BIT.RIGHT_SHOULDER} == w.XINPUT_GAMEPAD_BUTTON{w.XINPUT_GAMEPAD_BUTTON_BIT.RIGHT_SHOULDER}
-                    A :bool= Pad^.wButtons&w.XINPUT_GAMEPAD_BUTTON{w.XINPUT_GAMEPAD_BUTTON_BIT.A} == w.XINPUT_GAMEPAD_BUTTON{w.XINPUT_GAMEPAD_BUTTON_BIT.A}
-                    B :bool= Pad^.wButtons&w.XINPUT_GAMEPAD_BUTTON{w.XINPUT_GAMEPAD_BUTTON_BIT.B} == w.XINPUT_GAMEPAD_BUTTON{w.XINPUT_GAMEPAD_BUTTON_BIT.B}
-                    Y :bool= Pad^.wButtons&w.XINPUT_GAMEPAD_BUTTON{w.XINPUT_GAMEPAD_BUTTON_BIT.Y} == w.XINPUT_GAMEPAD_BUTTON{w.XINPUT_GAMEPAD_BUTTON_BIT.Y}
-                    X :bool= Pad^.wButtons&w.XINPUT_GAMEPAD_BUTTON{w.XINPUT_GAMEPAD_BUTTON_BIT.X} == w.XINPUT_GAMEPAD_BUTTON{w.XINPUT_GAMEPAD_BUTTON_BIT.X}
+                    OldController:game_controller_input
+                    NewController:game_controller_input
+
+                     //A :bool= Pad^.wButtons&w.XINPUT_GAMEPAD_BUTTON{w.XINPUT_GAMEPAD_BUTTON_BIT.A} == w.XINPUT_GAMEPAD_BUTTON{w.XINPUT_GAMEPAD_BUTTON_BIT.A}
+                    ProcessDidigtalButton(Pad^.wButtons,&OldController.gamepad.Down,&NewController.gamepad.Down,w.XINPUT_GAMEPAD_BUTTON_BIT.A)
+//                    NewInput.Controllers[ControllerIndex].gamepad.Down = NewController.gamepad.Down
+//                    ProcessDidigtalButton(Pad^.wButtons,&OldController.gamepad.Up,&NewController.gamepad.Up,w.XINPUT_GAMEPAD_BUTTON{w.XINPUT_GAMEPAD_BUTTON_BIT.B})
+//                    ProcessDidigtalButton(Pad^.wButtons,&OldController.gamepad.Right,&NewController.gamepad.Right,w.XINPUT_GAMEPAD_BUTTON{w.XINPUT_GAMEPAD_BUTTON_BIT.X})
+//                    ProcessDidigtalButton(Pad^.wButtons,&OldController.gamepad.Left,&NewController.gamepad.Left,w.XINPUT_GAMEPAD_BUTTON{w.XINPUT_GAMEPAD_BUTTON_BIT.Y})
+ //                   ProcessDidigtalButton(Pad^.wButtons,&OldController.gamepad.LShoulder,&NewController.gamepad.LShoulder,w.XINPUT_GAMEPAD_BUTTON{w.XINPUT_GAMEPAD_BUTTON_BIT.LEFT_SHOULDER})
+  //                  ProcessDidigtalButton(Pad^.wButtons,&OldController.gamepad.RShoulder,&NewController.gamepad.RShoulder,w.XINPUT_GAMEPAD_BUTTON{w.XINPUT_GAMEPAD_BUTTON_BIT.RIGHT_SHOULDER})
+
+                    //B :bool= Pad^.wButtons&w.XINPUT_GAMEPAD_BUTTON{w.XINPUT_GAMEPAD_BUTTON_BIT.B} == w.XINPUT_GAMEPAD_BUTTON{w.XINPUT_GAMEPAD_BUTTON_BIT.B}
+                    //Y :bool= Pad^.wButtons&w.XINPUT_GAMEPAD_BUTTON{w.XINPUT_GAMEPAD_BUTTON_BIT.Y} == w.XINPUT_GAMEPAD_BUTTON{w.XINPUT_GAMEPAD_BUTTON_BIT.Y}
+                    //X :bool= Pad^.wButtons&w.XINPUT_GAMEPAD_BUTTON{w.XINPUT_GAMEPAD_BUTTON_BIT.X} == w.XINPUT_GAMEPAD_BUTTON{w.XINPUT_GAMEPAD_BUTTON_BIT.X}
+                   // if(A){
+                    //    fmt.println("A is pressed", ControllerIndex)
+                   // }
 
                     Stickx: i16 = Pad^.sThumbLX
                     Sticky: i16 = Pad^.sThumbLY
                     makefast:i32 = 1
-                    if(A){
-                        makefast *=2
+                    x:f32
+                    y:f32
+                    if Stickx<0{
+                        x = f32(Stickx)/32768.0
                     }
-                    if(Left){
-                        offsetX+=makefast
+                    else{
+                        x = f32(Stickx)/32767.0
                     }
-                    if(Right){
-                        offsetX-=makefast
+                    if Sticky<0{
+                        y = f32(Sticky)/32768.0
                     }
-                    if(Up){
-                        offsetY+=1
+                    else{
+                        y = f32(Sticky)/32767.0
                     }
-                    if(Down){
-                        offsetY-=1
-                    }
+                    //INVERT X
+                    x=-x
+                    NewController.StartX = OldController.EndX
+                    NewController.StartY = OldController.EndY
+                    NewController.MinX = x
+                    NewController.MaxX = x
+                    NewController.EndX=x
+
+                    NewController.MinY = y
+                    NewController.MaxY = y
+                    NewController.EndY=y
+                    NewController.IsAnalgo = true
+                    fmt.println(x)
+                    NewInput.Controllers[ControllerIndex] = NewController
+
+
 
                 }
                 else{
@@ -502,28 +538,22 @@ main :: proc() {
 
                 SampleIndextoLock  = (SoundOutput.RunningSampleIndex*cast(u32)SoundOutput.BytesPerSample)%SoundOutput.SecondaryBufferSize
                 TargerCursor:=(PlayerCursor+(SoundOutput.LatencySampleCount*SoundOutput.BytesPerSample))%SoundOutput.SecondaryBufferSize
-//            fmt.println(SoundOutput.RunningSampleIndex)
-            if SoundOutput.RunningSampleIndex==48000{
-                fmt.println(SampleIndextoLock,TargerCursor)}
-                //if(SampleIndextoLock == PlayerCursor){
-
-                  //  BytesToWrite = 0
-                //}else
             if SampleIndextoLock>TargerCursor{
                     fmt.println("here")
                     BytesToWrite = SoundOutput.SecondaryBufferSize-SampleIndextoLock
                     BytesToWrite +=TargerCursor
                 } else{
                     BytesToWrite = TargerCursor - SampleIndextoLock
-                    if !SoundisValid{
-                        //BytesToWrite = 0
-                    }
 
                 }
                 SoundisValid=true
 
 
-//            defer(delete(TempS))
+            SoundBuffer :game_output_sound_buffer
+            SoundBuffer.SamplesPerSecond = SoundOutput.SamplesPerSecond
+            SoundBuffer.SampleCount = BytesToWrite/SoundOutput.BytesPerSample
+            SoundBuffer.SampleOut = Samples
+            SoundBuffer.ToneHz =440*2
 
 
 
@@ -537,21 +567,19 @@ main :: proc() {
                 win32FillSoundBuffer(&SoundOutput,SampleIndextoLock,BytesToWrite, &SoundBuffer)
             }
 
-            GameUpdateAndRender(&Buffer,offsetX,offsetY, &SoundBuffer)
+            GameUpdateAndRender(NewInput,&Buffer, &SoundBuffer)
 
-           if(!soundisPlaying){
+//           if(!soundisPlaying){
 
-                GlobalSecondaryBuffer->Play(0,0,0x01)
-                soundisPlaying = true
-            }
+ //               GlobalSecondaryBuffer->Play(0,0,0x01)
+  //              soundisPlaying = true
+   //         }
 
             DevContext:w.HDC = w.GetDC(GameWindow)
             Dimension := GetWindowDimension(GameWindow)
             CopyBufferToWindow(&Global_Back_Buffer,DevContext,Dimension.width,Dimension.height, 0,0,Dimension.width,Dimension.height)
             w.ReleaseDC(GameWindow,DevContext)
 
-            offsetX+=2
-            offsetY+=0
 
             EndCycleCount:= intrinsics.read_cycle_counter()
             CycleElapsed:=EndCycleCount - LastCycleCount
@@ -569,6 +597,10 @@ main :: proc() {
             }
             LastCounter = EndCounter
             LastCycleCount = EndCycleCount
+           //TODO Can write a little func to do this so you just pingong back and forth
+            Temp :^game_input = NewInput
+            NewInput = OldInput
+            OldInput = Temp
     }
  }
     else{

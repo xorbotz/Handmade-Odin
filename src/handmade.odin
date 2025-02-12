@@ -1,5 +1,45 @@
 package main
 //Update the gameWindow needs - input, bitmapbuffer to use, sound buffer to use, timing maybe
+import "core:math"
+import "core:fmt"
+
+game_button_state::struct{
+    HalfTransitionCount:int,
+    EndedDown:bool,
+}
+game_pad::struct{
+
+    Up:game_button_state,
+    Down:game_button_state,
+    Left:game_button_state,
+    Right:game_button_state,
+    LShoulder:game_button_state,
+    RShoulder:game_button_state,
+}
+Buttons:: union{
+    [6]game_button_state,
+    game_pad,
+}
+
+game_controller_input::struct{
+    StartX:f32,
+    MinX:f32,
+    MaxX:f32,
+    EndX:f32,
+
+    StartY:f32,
+    MinY:f32,
+    MaxY:f32,
+    EndY:f32,
+    IsAnalgo:bool,
+    gamepad:game_pad,
+   // padButtons:Buttons,
+
+
+}
+game_input::struct{
+    Controllers:[4]game_controller_input
+}
 game_offscreen_buffer::struct{
     memory:rawptr,
     Height,Width, Pitch:i32,
@@ -27,13 +67,14 @@ RenderWeirdGradient::proc(Buffer: ^game_offscreen_buffer, offsetX,offsetY:i32){
 game_output_sound_buffer::struct{
     SamplesPerSecond:u32,
     SampleCount:u32,
-    SampleOut:[^]i32
+    SampleOut:[^]i32,
+    ToneHz:u32
 }
 
-GameOutputSound::proc(SoundBuffer: ^game_output_sound_buffer){
+GameOutputSound::proc(SoundBuffer: ^game_output_sound_buffer,ToneHz:u32){
 
     Soundlevel :i16=1000
-    ToneHz:u32 = 440
+   // ToneHz:u32 = SoundBuffer.ToneHz
     SquareWavePeriod:u32  = 48000/ToneHz
     for SampleIndex:u32= 0; SampleIndex<SoundBuffer.SampleCount;SampleIndex+=1{
 
@@ -45,12 +86,32 @@ GameOutputSound::proc(SoundBuffer: ^game_output_sound_buffer){
         final: = temp|temp2
         SoundBuffer.SampleOut[SampleIndex] = final
     }
-
-
 }
-GameUpdateAndRender::proc(Buffer: ^game_offscreen_buffer, offsetX: i32, offsetY:i32, SoundBuffer: ^game_output_sound_buffer){
+GameUpdateAndRender::proc(Input:^game_input,Buffer: ^game_offscreen_buffer,  SoundBuffer: ^game_output_sound_buffer){
     //TODO Possibly implement the game to be told where in time to put sound
-    GameOutputSound(SoundBuffer)
+    @(static) offsetX:i32 = 0
+    @(static) offsetY:i32 = 0
+    @(static) ToneHz:u32 = 256
+    Input0 :^game_controller_input = &Input.Controllers[0]
+    if(Input0.IsAnalgo){
+        //NOTE do analog stuff
+        ToneHz=256+ u32(128.0*f32(Input0.EndY))
+        offsetX +=i32(4.0*f32(Input0.EndX))
+    }
+    else{
+        //Note do didigtal stuff
+    }
+
+
+    //offsetY+=1
+
+    if(Input0.gamepad.Down.EndedDown){
+        fmt.println("pushd button")
+        offsetY+=1
+    }
+
+
+    GameOutputSound(SoundBuffer,ToneHz)
     RenderWeirdGradient(Buffer,offsetX,offsetY)
 }
 
