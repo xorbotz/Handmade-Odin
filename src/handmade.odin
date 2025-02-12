@@ -33,7 +33,10 @@ game_controller_input::struct{
     EndY:f32,
     IsAnalgo:bool,
     gamepad:game_pad,
-   // padButtons:Buttons,
+    padButtons: union{
+        [6]game_button_state,
+        game_pad,
+        },
 
 
 }
@@ -93,6 +96,7 @@ GameUpdateAndRender::proc(Input:^game_input,Buffer: ^game_offscreen_buffer,  Sou
     @(static) offsetY:i32 = 0
     @(static) ToneHz:u32 = 256
     Input0 :^game_controller_input = &Input.Controllers[0]
+
     if(Input0.IsAnalgo){
         //NOTE do analog stuff
         ToneHz=256+ u32(128.0*f32(Input0.EndY))
@@ -104,11 +108,21 @@ GameUpdateAndRender::proc(Input:^game_input,Buffer: ^game_offscreen_buffer,  Sou
 
 
     //offsetY+=1
+    switch buttons in Input0.padButtons{
+        case game_pad:
+           if buttons.Down.EndedDown{
+               offsetY+=1
+           }
+        case [6]game_button_state:
+            if buttons[0].EndedDown{
+                offsetY+=1
+            }
 
-    if(Input0.gamepad.Down.EndedDown){
+    }
+    /*if(Input0.gamepad.Down.EndedDown){
         fmt.println("pushd button")
         offsetY+=1
-    }
+    }*/
 
 
     GameOutputSound(SoundBuffer,ToneHz)

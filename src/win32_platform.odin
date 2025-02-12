@@ -455,28 +455,35 @@ main :: proc() {
                     Down :bool= Pad^.wButtons&w.XINPUT_GAMEPAD_BUTTON{w.XINPUT_GAMEPAD_BUTTON_BIT.DPAD_DOWN} == w.XINPUT_GAMEPAD_BUTTON{w.XINPUT_GAMEPAD_BUTTON_BIT.DPAD_DOWN}
                     Left :bool= Pad^.wButtons&w.XINPUT_GAMEPAD_BUTTON{w.XINPUT_GAMEPAD_BUTTON_BIT.DPAD_LEFT} == w.XINPUT_GAMEPAD_BUTTON{w.XINPUT_GAMEPAD_BUTTON_BIT.DPAD_LEFT}
                     Right :bool= Pad^.wButtons&w.XINPUT_GAMEPAD_BUTTON{w.XINPUT_GAMEPAD_BUTTON_BIT.DPAD_RIGHT} == w.XINPUT_GAMEPAD_BUTTON{w.XINPUT_GAMEPAD_BUTTON_BIT.DPAD_RIGHT}
-//                    Start :bool= Pad^.wButtons&w.XINPUT_GAMEPAD_BUTTON{w.XINPUT_GAMEPAD_BUTTON_BIT.START} == w.XINPUT_GAMEPAD_BUTTON{w.XINPUT_GAMEPAD_BUTTON_BIT.START}
-                    LeftShoulder :bool= Pad^.wButtons&w.XINPUT_GAMEPAD_BUTTON{w.XINPUT_GAMEPAD_BUTTON_BIT.LEFT_SHOULDER} == w.XINPUT_GAMEPAD_BUTTON{w.XINPUT_GAMEPAD_BUTTON_BIT.LEFT_SHOULDER}
-                    RightShoulder :bool= Pad^.wButtons&w.XINPUT_GAMEPAD_BUTTON{w.XINPUT_GAMEPAD_BUTTON_BIT.RIGHT_SHOULDER} == w.XINPUT_GAMEPAD_BUTTON{w.XINPUT_GAMEPAD_BUTTON_BIT.RIGHT_SHOULDER}
+                    Start :bool= Pad^.wButtons&w.XINPUT_GAMEPAD_BUTTON{w.XINPUT_GAMEPAD_BUTTON_BIT.START} == w.XINPUT_GAMEPAD_BUTTON{w.XINPUT_GAMEPAD_BUTTON_BIT.START}
                     OldController:game_controller_input
                     NewController:game_controller_input
+                    NCGP:game_pad
+                    OCGP:game_pad
+                    OldController.padButtons = OCGP
+                    NewController.padButtons = NCGP
 
                      //A :bool= Pad^.wButtons&w.XINPUT_GAMEPAD_BUTTON{w.XINPUT_GAMEPAD_BUTTON_BIT.A} == w.XINPUT_GAMEPAD_BUTTON{w.XINPUT_GAMEPAD_BUTTON_BIT.A}
-                    ProcessDidigtalButton(Pad^.wButtons,&OldController.gamepad.Down,&NewController.gamepad.Down,w.XINPUT_GAMEPAD_BUTTON_BIT.A)
-//                    NewInput.Controllers[ControllerIndex].gamepad.Down = NewController.gamepad.Down
-//                    ProcessDidigtalButton(Pad^.wButtons,&OldController.gamepad.Up,&NewController.gamepad.Up,w.XINPUT_GAMEPAD_BUTTON{w.XINPUT_GAMEPAD_BUTTON_BIT.B})
-//                    ProcessDidigtalButton(Pad^.wButtons,&OldController.gamepad.Right,&NewController.gamepad.Right,w.XINPUT_GAMEPAD_BUTTON{w.XINPUT_GAMEPAD_BUTTON_BIT.X})
-//                    ProcessDidigtalButton(Pad^.wButtons,&OldController.gamepad.Left,&NewController.gamepad.Left,w.XINPUT_GAMEPAD_BUTTON{w.XINPUT_GAMEPAD_BUTTON_BIT.Y})
- //                   ProcessDidigtalButton(Pad^.wButtons,&OldController.gamepad.LShoulder,&NewController.gamepad.LShoulder,w.XINPUT_GAMEPAD_BUTTON{w.XINPUT_GAMEPAD_BUTTON_BIT.LEFT_SHOULDER})
-  //                  ProcessDidigtalButton(Pad^.wButtons,&OldController.gamepad.RShoulder,&NewController.gamepad.RShoulder,w.XINPUT_GAMEPAD_BUTTON{w.XINPUT_GAMEPAD_BUTTON_BIT.RIGHT_SHOULDER})
+                    if NCGPtoUse, ok:= NewController.padButtons.(game_pad);ok{
 
-                    //B :bool= Pad^.wButtons&w.XINPUT_GAMEPAD_BUTTON{w.XINPUT_GAMEPAD_BUTTON_BIT.B} == w.XINPUT_GAMEPAD_BUTTON{w.XINPUT_GAMEPAD_BUTTON_BIT.B}
-                    //Y :bool= Pad^.wButtons&w.XINPUT_GAMEPAD_BUTTON{w.XINPUT_GAMEPAD_BUTTON_BIT.Y} == w.XINPUT_GAMEPAD_BUTTON{w.XINPUT_GAMEPAD_BUTTON_BIT.Y}
-                    //X :bool= Pad^.wButtons&w.XINPUT_GAMEPAD_BUTTON{w.XINPUT_GAMEPAD_BUTTON_BIT.X} == w.XINPUT_GAMEPAD_BUTTON{w.XINPUT_GAMEPAD_BUTTON_BIT.X}
-                   // if(A){
-                    //    fmt.println("A is pressed", ControllerIndex)
-                   // }
-
+                        OCGPtoUse :=OldController.padButtons.(game_pad)
+                    ProcessDidigtalButton(Pad^.wButtons,&OCGPtoUse.Down,&NCGPtoUse.Down,w.XINPUT_GAMEPAD_BUTTON_BIT.A)
+                    ProcessDidigtalButton(Pad^.wButtons,&OCGPtoUse.Up,&NCGPtoUse.Up,w.XINPUT_GAMEPAD_BUTTON_BIT.B)
+                    ProcessDidigtalButton(Pad^.wButtons,&OCGPtoUse.Right,&NCGPtoUse.Right,w.XINPUT_GAMEPAD_BUTTON_BIT.X)
+                   ProcessDidigtalButton(Pad^.wButtons,&OCGPtoUse.Left,&NCGPtoUse.Left,w.XINPUT_GAMEPAD_BUTTON_BIT.Y)
+                   ProcessDidigtalButton(Pad^.wButtons,&OCGPtoUse.LShoulder,&NCGPtoUse.LShoulder,w.XINPUT_GAMEPAD_BUTTON_BIT.LEFT_SHOULDER)
+                   ProcessDidigtalButton(Pad^.wButtons,&OCGPtoUse.RShoulder,&NCGPtoUse.RShoulder,w.XINPUT_GAMEPAD_BUTTON_BIT.RIGHT_SHOULDER)
+                    }
+                    else{
+                        NCGPtoUse2: = NewController.padButtons.([6]game_button_state)
+                        OCGPtoUse :=OldController.padButtons.([6]game_button_state)
+                        ProcessDidigtalButton(Pad^.wButtons,&OCGPtoUse[0],&NCGPtoUse2[0],w.XINPUT_GAMEPAD_BUTTON_BIT.A)
+                        ProcessDidigtalButton(Pad^.wButtons,&OCGPtoUse[1],&NCGPtoUse2[1],w.XINPUT_GAMEPAD_BUTTON_BIT.B)
+                        ProcessDidigtalButton(Pad^.wButtons,&OCGPtoUse[2],&NCGPtoUse2[2],w.XINPUT_GAMEPAD_BUTTON_BIT.X)
+                        ProcessDidigtalButton(Pad^.wButtons,&OCGPtoUse[0],&NCGPtoUse2[0],w.XINPUT_GAMEPAD_BUTTON_BIT.Y)
+                        ProcessDidigtalButton(Pad^.wButtons,&OCGPtoUse[0],&NCGPtoUse2[0],w.XINPUT_GAMEPAD_BUTTON_BIT.LEFT_SHOULDER)
+                        ProcessDidigtalButton(Pad^.wButtons,&OCGPtoUse[0],&NCGPtoUse2[0],w.XINPUT_GAMEPAD_BUTTON_BIT.RIGHT_SHOULDER)
+                    }
                     Stickx: i16 = Pad^.sThumbLX
                     Sticky: i16 = Pad^.sThumbLY
                     makefast:i32 = 1
@@ -554,8 +561,6 @@ main :: proc() {
             SoundBuffer.SampleCount = BytesToWrite/SoundOutput.BytesPerSample
             SoundBuffer.SampleOut = Samples
             SoundBuffer.ToneHz =440*2
-
-
 
             Buffer:game_offscreen_buffer
             Buffer.memory = Global_Back_Buffer.memory
