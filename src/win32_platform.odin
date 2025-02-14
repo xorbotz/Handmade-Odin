@@ -465,6 +465,7 @@ main :: proc() {
 
                      //A :bool= Pad^.wButtons&w.XINPUT_GAMEPAD_BUTTON{w.XINPUT_GAMEPAD_BUTTON_BIT.A} == w.XINPUT_GAMEPAD_BUTTON{w.XINPUT_GAMEPAD_BUTTON_BIT.A}
                     if NCGPtoUse, ok:= NewController.padButtons.(game_pad);ok{
+                        //Pleaes GIt don't be a turd
 
                         OCGPtoUse :=OldController.padButtons.(game_pad)
                     ProcessDidigtalButton(Pad^.wButtons,&OCGPtoUse.Down,&NCGPtoUse.Down,w.XINPUT_GAMEPAD_BUTTON_BIT.A)
