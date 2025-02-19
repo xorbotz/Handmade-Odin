@@ -3,6 +3,22 @@ package main
 import "core:math"
 import "core:fmt"
 
+debug_mode:bool= true
+
+game_memory::struct{
+    isInit:bool,
+    Permanentstoragesize:u64,
+    PermanentStorage:rawptr,
+
+    Transientstoragesize:u64,
+    Transientstorage:rawptr
+}
+game_state::struct{
+    offsetX:i32,
+    offsetY:i32,
+    ToneHz:u32,
+
+}
 game_button_state::struct{
     HalfTransitionCount:int,
     EndedDown:bool,
@@ -90,42 +106,45 @@ GameOutputSound::proc(SoundBuffer: ^game_output_sound_buffer,ToneHz:u32){
         SoundBuffer.SampleOut[SampleIndex] = final
     }
 }
-GameUpdateAndRender::proc(Input:^game_input,Buffer: ^game_offscreen_buffer,  SoundBuffer: ^game_output_sound_buffer){
+
+GameUpdateAndRender::proc(Memory:^game_memory,Input:^game_input,Buffer: ^game_offscreen_buffer,  SoundBuffer: ^game_output_sound_buffer){
     //TODO Possibly implement the game to be told where in time to put sound
-    @(static) offsetX:i32 = 0
-    @(static) offsetY:i32 = 0
-    @(static) ToneHz:u32 = 256
-    Input0 :^game_controller_input = &Input.Controllers[0]
+   Input0 :^game_controller_input = &Input.Controllers[0]
+   GameState:^game_state = cast(^game_state)Memory.PermanentStorage
+   if debug_mode{
+   assert(size_of(GameState)<=Memory.Permanentstoragesize)
+    }
+   if !Memory.isInit{
+       GameState.ToneHz = 256*4
+       GameState.offsetY=0
+       GameState.offsetX=0
+       //TODO may be appropriate to do in platform layer
+       Memory.isInit = true
+
+   }
 
     if(Input0.IsAnalgo){
         //NOTE do analog stuff
-        ToneHz=256+ u32(128.0*f32(Input0.EndY))
-        offsetX +=i32(4.0*f32(Input0.EndX))
+        GameState.ToneHz=256+ u32(128.0*f32(Input0.EndY))
+        GameState.offsetX +=i32(4.0*f32(Input0.EndX))
     }
     else{
         //Note do didigtal stuff
     }
 
-
-    //offsetY+=1
     switch buttons in Input0.padButtons{
         case game_pad:
            if buttons.Down.EndedDown{
-               offsetY+=1
+               GameState.offsetY+=1
            }
         case [6]game_button_state:
             if buttons[0].EndedDown{
-                offsetY+=1
+                GameState.offsetY+=1
             }
 
     }
-    /*if(Input0.gamepad.Down.EndedDown){
-        fmt.println("pushd button")
-        offsetY+=1
-    }*/
 
-
-    GameOutputSound(SoundBuffer,ToneHz)
-    RenderWeirdGradient(Buffer,offsetX,offsetY)
+    GameOutputSound(SoundBuffer,GameState.ToneHz)
+    RenderWeirdGradient(Buffer,GameState.offsetX,GameState.offsetY)
 }
 

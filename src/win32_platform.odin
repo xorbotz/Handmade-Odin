@@ -226,6 +226,11 @@ win32_offscreen_buffer::struct{
     arena_err: vmem.Allocator_Error,//= vmem.arena_init_growing(&Global_Back_Buffer.bmArena)
     arena_alloc : mem.Allocator,//= vmem.arena_allocator(&Global_Back_Buffer.bmArena)l
 }
+win32_game_memory::struct{
+    bmArena:vmem.Arena,
+    arena_err:vmem.Allocator_Error,
+    arena_alloc:mem.Allocator,
+}
 
 
 
@@ -412,8 +417,19 @@ main :: proc() {
         Samples:[^]i32
         Samples = raw_data(Temp2[:])
 
+        win32Memory:win32_game_memory
+        win32Memory.arena_err = vmem.arena_init_growing(&win32Memory.bmArena)
+        win32Memory.arena_alloc = vmem.arena_allocator(&win32Memory.bmArena)
+        GameMemory:game_memory
+        GameMemory.Permanentstoragesize = mem.Megabyte*64
+        //TODO may have to change this from a multipointer to a slice or something I don't know...
+        GameMemory.PermanentStorage =make_multi_pointer([^]rawptr,GameMemory.Permanentstoragesize,win32Memory.arena_alloc)//&bmarena
+        GameMemory.Transientstoragesize = mem.Gigabyte*4
+        GameMemory.Transientstorage =make_multi_pointer([^]rawptr,GameMemory.Permanentstoragesize,win32Memory.arena_alloc)//&bmarena
+        fmt.println(size_of(GameMemory.PermanentStorage))
 
-//        win32FillSoundBuffer(&SoundOutput,0,(SoundOutput.LatencySampleCount*SoundOutput.BytesPerSample),&SoundBuffer)
+
+        //        win32FillSoundBuffer(&SoundOutput,0,(SoundOutput.LatencySampleCount*SoundOutput.BytesPerSample),&SoundBuffer)
         win32ClearBuffer(&SoundOutput)
         GlobalSecondaryBuffer->Play(0,0,0x01)
 
@@ -465,7 +481,7 @@ main :: proc() {
 
                      //A :bool= Pad^.wButtons&w.XINPUT_GAMEPAD_BUTTON{w.XINPUT_GAMEPAD_BUTTON_BIT.A} == w.XINPUT_GAMEPAD_BUTTON{w.XINPUT_GAMEPAD_BUTTON_BIT.A}
                     if NCGPtoUse, ok:= NewController.padButtons.(game_pad);ok{
-                        //Pleaes GIt don't be a turd
+                        //Pleaes GIt don't be a turdjj
 
                         OCGPtoUse :=OldController.padButtons.(game_pad)
                     ProcessDidigtalButton(Pad^.wButtons,&OCGPtoUse.Down,&NCGPtoUse.Down,w.XINPUT_GAMEPAD_BUTTON_BIT.A)
@@ -573,7 +589,7 @@ main :: proc() {
                 win32FillSoundBuffer(&SoundOutput,SampleIndextoLock,BytesToWrite, &SoundBuffer)
             }
 
-            GameUpdateAndRender(NewInput,&Buffer, &SoundBuffer)
+            GameUpdateAndRender(&GameMemory,NewInput,&Buffer, &SoundBuffer)
 
 //           if(!soundisPlaying){
 
