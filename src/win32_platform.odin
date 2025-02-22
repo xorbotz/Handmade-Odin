@@ -34,7 +34,15 @@ Global_Back_Buffer:=win32_offscreen_buffer{}
 GlobalSecondaryBuffer: ^IDirectSoundBuffer
 GameMemory:game_memory
 win32Memory:win32_game_memory
-
+PerfCounterFrequency : w.LARGE_INTEGER
+win32GetWallClock:: #force_inline proc()->w.LARGE_INTEGER{
+    Result:w.LARGE_INTEGER
+    w.QueryPerformanceCounter(&Result)
+    return Result
+}
+win32GetSecondsElapsed:: #force_inline proc(Start:w.LARGE_INTEGER,End:w.LARGE_INTEGER)->f32{
+    return (f32(End-Start))/f32(PerfCounterFrequency)
+}
 ReadEntireFile::proc (filename:string) ->([]u8,^[]u8,i64){
 
     file_handle,handle := os.open(filename)
@@ -476,8 +484,14 @@ main :: proc() {
         hInstance = instance,
         lpszClassName = class_name,
     }
-    PerfCounterFrequency : w.LARGE_INTEGER
-    w.QueryPerformanceFrequency(&PerfCounterFrequency)
+    MonitorRefresh:int=60
+    GameUpdateHz:= MonitorRefresh/2
+    SecondsPerFrame :f32 = (1.0/cast(f32)GameUpdateHz)
+    PCFResult:w.LARGE_INTEGER
+    w.QueryPerformanceFrequency(&PCFResult)
+    PerfCounterFrequency = PCFResult
+    DesiredSchedulerMS:u32=1
+    Sleepisok:=w.timeBeginPeriod(DesiredSchedulerMS)==w.TIMERR_NOERROR
     class:=w.RegisterClassW(&cls)
     assert(class!=0, "calss iddn't register oh no")
     GameWindow:=w.CreateWindowExW(w.WS_EX_LEFT,cls.lpszClassName,w.L("Game WIndow DUde"),w.WS_OVERLAPPEDWINDOW|w.WS_VISIBLE,w.CW_USEDEFAULT,w.CW_USEDEFAULT,w.CW_USEDEFAULT,w.CW_USEDEFAULT,nil,nil,instance,nil)
@@ -525,8 +539,7 @@ main :: proc() {
 
          soundisPlaying := true
 
-        LastCounter:w.LARGE_INTEGER
-        w.QueryPerformanceCounter(&LastCounter)
+        LastCounter: = win32GetWallClock()
         //TODO This probably can be replaced by newer code
         LastCycleCount := intrinsics.read_cycle_counter()
         Input:[2]game_input
@@ -672,39 +685,42 @@ main :: proc() {
             Buffer.Height = Global_Back_Buffer.Height
             Buffer.Pitch = Global_Back_Buffer.Pitch
 
+           GameUpdateAndRender(&GameMemory,NewInput,&Buffer, &SoundBuffer)
+
             if SoundisValid{
                 win32FillSoundBuffer(&SoundOutput,SampleIndextoLock,BytesToWrite, &SoundBuffer)
             }
 
-            GameUpdateAndRender(&GameMemory,NewInput,&Buffer, &SoundBuffer)
-
-//           if(!soundisPlaying){
-
- //               GlobalSecondaryBuffer->Play(0,0,0x01)
-  //              soundisPlaying = true
-   //         }
-
-            DevContext:w.HDC = w.GetDC(GameWindow)
-            Dimension := GetWindowDimension(GameWindow)
-            CopyBufferToWindow(&Global_Back_Buffer,DevContext,Dimension.width,Dimension.height, 0,0,Dimension.width,Dimension.height)
-            w.ReleaseDC(GameWindow,DevContext)
 
 
             EndCycleCount:= intrinsics.read_cycle_counter()
             CycleElapsed:=EndCycleCount - LastCycleCount
-            EndCounter : w.LARGE_INTEGER
-            w.QueryPerformanceCounter(&EndCounter)
-            CounterElapsed: = EndCounter-LastCounter
-            Time:=1000*CounterElapsed/PerfCounterFrequency
-           //TODO remove debug code
-            temp2:[4]byte
-            temp3:[4]byte
-            MCPF:= strconv.itoa(temp3[:],(int(CycleElapsed)/(1000*1000)))
-            temp: = strings.concatenate({"Mili/Fram ",strconv.itoa(temp2[:],int(Time)),"CyclesElapsed(10^6): ",MCPF,"\n"})
-            if Time>10{
-            w.OutputDebugStringA(strings.clone_to_cstring(temp,context.temp_allocator))//"Counter Elapsed: ",CounterElapsed," PerfCountF ", PerfCounterFrequency,"This took ",Time," miliSeconds")
+            WorkCounter := win32GetWallClock()
+            SecondsElapseWork:=win32GetSecondsElapsed(LastCounter,WorkCounter)
+            SecondsElapsedForFrame:=SecondsElapseWork
+           if SecondsElapsedForFrame<=SecondsPerFrame{
+            for SecondsElapsedForFrame<SecondsPerFrame{
+               Sleepms:w.DWORD = w.DWORD(1000.0*(SecondsPerFrame-SecondsElapsedForFrame))
+               if(Sleepisok){
+               w.Sleep(Sleepms)
+               }
+                SecondsElapsedForFrame = win32GetSecondsElapsed(LastCounter,win32GetWallClock())
             }
-            LastCounter = EndCounter
+            }
+           else{
+               //assert for debug
+           //    assert(true==false)
+           }
+           EndCounter:w.LARGE_INTEGER = win32GetWallClock()
+           MSPFrame:f32=1000.0*win32GetSecondsElapsed(LastCounter,win32GetWallClock())
+           fmt.println(MSPFrame)
+           LastCounter = EndCounter
+
+           DevContext:w.HDC = w.GetDC(GameWindow)
+           Dimension := GetWindowDimension(GameWindow)
+           CopyBufferToWindow(&Global_Back_Buffer,DevContext,Dimension.width,Dimension.height, 0,0,Dimension.width,Dimension.height)
+           w.ReleaseDC(GameWindow,DevContext)
+
             LastCycleCount = EndCycleCount
            //TODO Can write a little func to do this so you just pingong back and forth
             Temp :^game_input = NewInput
