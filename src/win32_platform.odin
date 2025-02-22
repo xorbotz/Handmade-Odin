@@ -237,6 +237,7 @@ win32FillSoundBuffer::proc(SoundOutput: ^win32_sound_output, SampleIndextoLock:w
     Region2Size: w.DWORD
  //   fmt.println(BytesToWrite)
 
+
     lock_ok: = GlobalSecondaryBuffer->Lock(SampleIndextoLock, BytesToWrite,
     &Region1,&Region1Size,
     &Region2, &Region2Size, 0)
