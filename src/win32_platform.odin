@@ -10,6 +10,7 @@ import "core:math"
 import "core:strings"
 import "core:strconv"
 import "base:intrinsics"
+import os "core:os"
 
 //import dx "vendor:directx"
 /*TODO
@@ -31,11 +32,145 @@ import "base:intrinsics"
 running := true
 Global_Back_Buffer:=win32_offscreen_buffer{}
 GlobalSecondaryBuffer: ^IDirectSoundBuffer
+GameMemory:game_memory
+win32Memory:win32_game_memory
 
+ReadEntireFile::proc (filename:string) ->([]u8,^[]u8,i64){
+
+    file_handle,handle := os.open(filename)
+    //file_data,file_ok:=os.read_entire_file_from_filename(filename,gameAlloc^)
+    fmt.println("handle error: ", handle)
+    if handle ==nil{
+        fmt.println("have handle")
+        file_size,_:=os.file_size(file_handle)
+        fmt.println("size: ", file_size)
+        file_data,file_ok:=os.read_entire_file_from_handle(file_handle)
+        if file_ok{
+            fileptr:^[]u8=new([]u8)
+            fileptr = &file_data
+            return file_data,fileptr,file_size
+ }
+        else{
+            //TODO maybe free this memory? I have to figure that out.
+        }
+        os.close(file_handle)
+        return nil,nil,-1
+
+    }
+    else{
+        //TODO this might be necessary assert(1==0)
+        panic("FILE NOTE FOUND CRASHING")
+    }
+}
+DeleteFileData::proc(file_data:[]u8,fileptr:^[]u8){
+    delete(file_data)
+    free(fileptr)
+}
+PlatformWriteEntireFile::proc(file_name:string,Memory:[]u8,Memsize:int){
+    Name:[^]u8
+    Name = raw_data(file_name)
+    Name2: = cast([^]u16)Name
+    //FileHandle:=w.CreateFileW(Name2,w.GENERIC_WRITE,0,nil,w.CREATE_ALWAYS,0,nil)
+   // os.get_std_handle()
+    os.write_entire_file(file_name,Memory)
+    //w.CloseHandle(FileHandle)
+}
 ProcessDidigtalButton::proc(XInputButtonState: w.XINPUT_GAMEPAD_BUTTON,OldState:^game_button_state,NewState:^game_button_state, ButtonBit:w.XINPUT_GAMEPAD_BUTTON_BIT){
     NewState.HalfTransitionCount = OldState.EndedDown !=NewState.EndedDown?1:0
 //    NewState.EndedDown =(XInputButtonState & ButtonBit) == ButtonBit
     NewState.EndedDown  =XInputButtonState& w.XINPUT_GAMEPAD_BUTTON{ButtonBit} == w.XINPUT_GAMEPAD_BUTTON{ButtonBit}
+}
+ProcessAnalogAsDidigtalButton::proc(XInputButtonState: bool,OldState:^game_button_state,NewState:^game_button_state ){
+    NewState.HalfTransitionCount = OldState.EndedDown !=NewState.EndedDown?1:0
+    //    NewState.EndedDown =(XInputButtonState & ButtonBit) == ButtonBit
+    NewState.EndedDown  =XInputButtonState
+}
+ProcessAnalogStick::proc(Value:i16, DeadZone:i16)->f32{
+    x:f32=0
+    if Value< -1*DeadZone{
+        x = f32(Value)/32768.0
+    } else if Value>DeadZone{
+        x = f32(Value)/32767.0
+    }
+    return x
+}
+KeyboardProcessDidigtalButton::proc(NewState:^game_button_state, IsDown:bool){
+    assert(NewState.EndedDown!=IsDown)
+    NewState.HalfTransitionCount +=1
+    //    NewState.EndedDown =(XInputButtonState & ButtonBit) == ButtonBit
+    NewState.EndedDown  = IsDown
+}
+win32ProcessPendingMessages::proc(KeyboardController:^game_controller_input ){
+    msg:w.MSG
+    KBGPtoUse := &KeyboardController.padButtons.(game_pad)
+    for w.PeekMessageW(&msg,nil,0,0,w.PM_REMOVE){
+    //TODO could add a quit case here!
+        switch(msg.message){
+
+        case w.WM_KEYUP, w.WM_KEYDOWN, w.WM_SYSKEYDOWN, w.WM_SYSKEYUP:
+            VKCode:= msg.wParam
+            wasDown:bool = (msg.lParam&(1<<30)!=0)
+            isDown:bool  = msg.lParam&(1<<31)==0
+            //TODO NEED TO FIX the stickykeys?
+           if isDown!=wasDown{
+            if VKCode == 'W'{
+                KeyboardProcessDidigtalButton(&KBGPtoUse.Up, isDown)
+
+            } else if VKCode == 'A'{
+                fmt.println("A IS PRESSED")
+                KeyboardProcessDidigtalButton(&KBGPtoUse.Left, isDown)
+
+            } else if VKCode == 'S'{
+
+                fmt.println("S is pressed", isDown)
+                KeyboardProcessDidigtalButton(&KBGPtoUse.Down,isDown)
+
+            } else if VKCode == 'D'{
+                KeyboardProcessDidigtalButton(&KBGPtoUse.Right,isDown)
+
+            }
+            else if VKCode == 'Q'{
+
+            }
+            else if VKCode == 'E'{
+
+            } else if VKCode ==w.VK_RIGHT{
+                KeyboardProcessDidigtalButton(&KBGPtoUse.Action4, isDown)
+            } else if VKCode ==w.VK_DOWN{
+                KeyboardProcessDidigtalButton(&KBGPtoUse.Action3, isDown)
+            } else if VKCode ==w.VK_LEFT{
+                KeyboardProcessDidigtalButton(&KBGPtoUse.Action2, isDown)
+            } else if VKCode ==w.VK_UP{
+                KeyboardProcessDidigtalButton(&KBGPtoUse.Action1, isDown)
+            } else if VKCode ==w.VK_ESCAPE{
+
+                fmt.print("Escape: ")
+                if(isDown){
+                    fmt.print("is down")
+                }
+
+                if(wasDown){
+                    fmt.print("was down")
+                }
+                fmt.print("\n")
+            } else if VKCode ==w.VK_SPACE{
+                KeyboardProcessDidigtalButton(&KBGPtoUse.Start, isDown)
+            }
+            AltKeydown := msg.lParam &(1<<29)
+            if VKCode == w.VK_F4 && AltKeydown>0{
+                running=false
+            }
+
+                  }
+
+            //NewInput.Controllers[0].padButtons = KBGPtoUse
+            fmt.println(KBGPtoUse.Down)
+        //fmt.println(KeyboardController)j
+        case:
+            w.TranslateMessage(&msg)
+            w.DispatchMessageW(&msg)
+        }
+    }
 }
 win32_window_dimensions::struct{
     width:i32,
@@ -286,52 +421,8 @@ wndproc:: proc "stdcall"( window: w.HWND, msg:w.UINT, wparam: w.WPARAM,lparam: w
             running = false
 
         case w.WM_KEYUP, w.WM_KEYDOWN, w.WM_SYSKEYDOWN, w.WM_SYSKEYUP:
-            VKCode:= wparam
-            wasDown:bool = (lparam&(1<<30)!=0)
-            isDown:bool  = lparam&(1<<31)==0
-            //TODO NEED TO FIX the stickykeys?
-        if isDown!=wasDown{
-            if VKCode == 'W'{
-
-            } else if VKCode == 'A'{
-
-            } else if VKCode == 'S'{
-
-            } else if VKCode == 'D'{
-
-            }
-            else if VKCode == 'Q'{
-
-            }
-            else if VKCode == 'E'{
-
-            } else if VKCode ==w.VK_RIGHT{
-
-            } else if VKCode ==w.VK_DOWN{
-
-            } else if VKCode ==w.VK_LEFT{
-
-            } else if VKCode ==w.VK_UP{
-
-            } else if VKCode ==w.VK_ESCAPE{
-
-                fmt.print("Escape: ")
-                if(isDown){
-                    fmt.print("is down")
-                }
-
-                if(wasDown){
-                    fmt.print("was down")
-                }
-                fmt.print("\n")
-            } else if VKCode ==w.VK_SPACE{
-
-            }
-            AltKeydown := lparam &(1<<29)
-            if VKCode == w.VK_F4 && AltKeydown>0{
-                running=false
-            }
-        }
+            fmt.print("Error in Keyboard handling")
+            assert(false==true)
 
         case w.WM_CLOSE:
             //TODO: change this with a message
@@ -417,16 +508,15 @@ main :: proc() {
         Samples:[^]i32
         Samples = raw_data(Temp2[:])
 
-        win32Memory:win32_game_memory
         win32Memory.arena_err = vmem.arena_init_growing(&win32Memory.bmArena)
         win32Memory.arena_alloc = vmem.arena_allocator(&win32Memory.bmArena)
-        GameMemory:game_memory
         GameMemory.Permanentstoragesize = mem.Megabyte*64
         //TODO may have to change this from a multipointer to a slice or something I don't know...
         GameMemory.PermanentStorage =make_multi_pointer([^]rawptr,GameMemory.Permanentstoragesize,win32Memory.arena_alloc)//&bmarena
         GameMemory.Transientstoragesize = mem.Gigabyte*4
         GameMemory.Transientstorage =make_multi_pointer([^]rawptr,GameMemory.Permanentstoragesize,win32Memory.arena_alloc)//&bmarena
         fmt.println(size_of(GameMemory.PermanentStorage))
+
 
 
         //        win32FillSoundBuffer(&SoundOutput,0,(SoundOutput.LatencySampleCount*SoundOutput.BytesPerSample),&SoundBuffer)
@@ -443,26 +533,36 @@ main :: proc() {
         NewInput:^game_input = &Input[0]
         //NewInput.Controllers
         OldInput:^game_input=&Input[1]
+        //TODO I fixed the keyoard, I need to fix the controllers
         OldController:^ game_controller_input
         NewController:^ game_controller_input
+        KeyboardController:^ game_controller_input = &NewInput.Controllers[0]
+        KBGP:game_pad
+        KeyboardController.padButtons = KBGP
+        KBGPtoUse := &KeyboardController.padButtons.(game_pad)
+
 
         for running {
+           KBGPtoUse^.Down.HalfTransitionCount=0
+           KBGPtoUse^.Up.HalfTransitionCount=0
+           KBGPtoUse^.Right.HalfTransitionCount=0
+           KBGPtoUse^.Left.HalfTransitionCount=0
 
-            for w.PeekMessageW(&msg,nil,0,0,w.PM_REMOVE){
-            //TODO could add a quit case here!
-
-                w.TranslateMessage(&msg)
-                w.DispatchMessageW(&msg)
-
-            }
+           KBGPtoUse^.Action1.HalfTransitionCount=0
+           KBGPtoUse^.Action2.HalfTransitionCount=0
+           KBGPtoUse^.Action3.HalfTransitionCount=0
+           KBGPtoUse^.Action4.HalfTransitionCount=0
+            #force_inline win32ProcessPendingMessages(KeyboardController)
            //TODO POSSIBLY POLL MORE OFTEN
             for ControllerIndex:w.DWORD = 0;ControllerIndex<w.XUSER_MAX_COUNT; ControllerIndex+=1{
                 ControllerState:w.XINPUT_STATE
                 //TODO - Only poll controllers when we know they are plugged in - you can do this with an HID flag
-                OldController = &OldInput.Controllers[ControllerIndex]
-                NewController= &NewInput.Controllers[ControllerIndex]
+                //1+ for the keyboard
+                OldController = &OldInput.Controllers[1+ControllerIndex]
+                NewController= &NewInput.Controllers[1+ControllerIndex]
 
                 if cast(u32)w.XInputGetState(cast(w.XUSER)ControllerIndex,&ControllerState)==w.ERROR_SUCCESS{
+                    NewController.isConnected =true
                     Pad:^w.XINPUT_GAMEPAD = &ControllerState.Gamepad
 
                     //I believe all of this is necessary to work with xInput and Bitmask
@@ -472,28 +572,27 @@ main :: proc() {
                     Left :bool= Pad^.wButtons&w.XINPUT_GAMEPAD_BUTTON{w.XINPUT_GAMEPAD_BUTTON_BIT.DPAD_LEFT} == w.XINPUT_GAMEPAD_BUTTON{w.XINPUT_GAMEPAD_BUTTON_BIT.DPAD_LEFT}
                     Right :bool= Pad^.wButtons&w.XINPUT_GAMEPAD_BUTTON{w.XINPUT_GAMEPAD_BUTTON_BIT.DPAD_RIGHT} == w.XINPUT_GAMEPAD_BUTTON{w.XINPUT_GAMEPAD_BUTTON_BIT.DPAD_RIGHT}
                     Start :bool= Pad^.wButtons&w.XINPUT_GAMEPAD_BUTTON{w.XINPUT_GAMEPAD_BUTTON_BIT.START} == w.XINPUT_GAMEPAD_BUTTON{w.XINPUT_GAMEPAD_BUTTON_BIT.START}
-                    OldController:game_controller_input
-                    NewController:game_controller_input
                     NCGP:game_pad
                     OCGP:game_pad
+
                     OldController.padButtons = OCGP
                     NewController.padButtons = NCGP
 
                      //A :bool= Pad^.wButtons&w.XINPUT_GAMEPAD_BUTTON{w.XINPUT_GAMEPAD_BUTTON_BIT.A} == w.XINPUT_GAMEPAD_BUTTON{w.XINPUT_GAMEPAD_BUTTON_BIT.A}
-                    if NCGPtoUse, ok:= NewController.padButtons.(game_pad);ok{
+                    if NCGPtoUse, ok:= &NewController.padButtons.(game_pad);ok{
                         //Pleaes GIt don't be a turdjj
 
-                        OCGPtoUse :=OldController.padButtons.(game_pad)
-                    ProcessDidigtalButton(Pad^.wButtons,&OCGPtoUse.Down,&NCGPtoUse.Down,w.XINPUT_GAMEPAD_BUTTON_BIT.A)
-                    ProcessDidigtalButton(Pad^.wButtons,&OCGPtoUse.Up,&NCGPtoUse.Up,w.XINPUT_GAMEPAD_BUTTON_BIT.B)
-                    ProcessDidigtalButton(Pad^.wButtons,&OCGPtoUse.Right,&NCGPtoUse.Right,w.XINPUT_GAMEPAD_BUTTON_BIT.X)
-                   ProcessDidigtalButton(Pad^.wButtons,&OCGPtoUse.Left,&NCGPtoUse.Left,w.XINPUT_GAMEPAD_BUTTON_BIT.Y)
+                        OCGPtoUse :=&OldController.padButtons.(game_pad)
+                    ProcessDidigtalButton(Pad^.wButtons,&OCGPtoUse.Action3,&NCGPtoUse.Action3,w.XINPUT_GAMEPAD_BUTTON_BIT.A)
+                    ProcessDidigtalButton(Pad^.wButtons,&OCGPtoUse.Action1,&NCGPtoUse.Action1,w.XINPUT_GAMEPAD_BUTTON_BIT.B)
+                    ProcessDidigtalButton(Pad^.wButtons,&OCGPtoUse.Action4,&NCGPtoUse.Action4,w.XINPUT_GAMEPAD_BUTTON_BIT.X)
+                   ProcessDidigtalButton(Pad^.wButtons,&OCGPtoUse.Action2,&NCGPtoUse.Action2,w.XINPUT_GAMEPAD_BUTTON_BIT.Y)
                    ProcessDidigtalButton(Pad^.wButtons,&OCGPtoUse.LShoulder,&NCGPtoUse.LShoulder,w.XINPUT_GAMEPAD_BUTTON_BIT.LEFT_SHOULDER)
                    ProcessDidigtalButton(Pad^.wButtons,&OCGPtoUse.RShoulder,&NCGPtoUse.RShoulder,w.XINPUT_GAMEPAD_BUTTON_BIT.RIGHT_SHOULDER)
                     }
                     else{
-                        NCGPtoUse2: = NewController.padButtons.([6]game_button_state)
-                        OCGPtoUse :=OldController.padButtons.([6]game_button_state)
+                        NCGPtoUse2: = &NewController.padButtons.([9]game_button_state)
+                        OCGPtoUse :=&OldController.padButtons.([9]game_button_state)
                         ProcessDidigtalButton(Pad^.wButtons,&OCGPtoUse[0],&NCGPtoUse2[0],w.XINPUT_GAMEPAD_BUTTON_BIT.A)
                         ProcessDidigtalButton(Pad^.wButtons,&OCGPtoUse[1],&NCGPtoUse2[1],w.XINPUT_GAMEPAD_BUTTON_BIT.B)
                         ProcessDidigtalButton(Pad^.wButtons,&OCGPtoUse[2],&NCGPtoUse2[2],w.XINPUT_GAMEPAD_BUTTON_BIT.X)
@@ -504,40 +603,28 @@ main :: proc() {
                     Stickx: i16 = Pad^.sThumbLX
                     Sticky: i16 = Pad^.sThumbLY
                     makefast:i32 = 1
-                    x:f32
-                    y:f32
-                    if Stickx<0{
-                        x = f32(Stickx)/32768.0
-                    }
-                    else{
-                        x = f32(Stickx)/32767.0
-                    }
-                    if Sticky<0{
-                        y = f32(Sticky)/32768.0
-                    }
-                    else{
-                        y = f32(Sticky)/32767.0
-                    }
-                    //INVERT X
-                    x=-x
-                    NewController.StartX = OldController.EndX
-                    NewController.StartY = OldController.EndY
-                    NewController.MinX = x
-                    NewController.MaxX = x
-                    NewController.EndX=x
 
-                    NewController.MinY = y
-                    NewController.MaxY = y
-                    NewController.EndY=y
+                    LEFT_THUMB_DEAD_ZONE::7849
+                    DigitalThreshold::.5
+                    x: =ProcessAnalogStick(Stickx,LEFT_THUMB_DEAD_ZONE)
+                    y: =ProcessAnalogStick(Sticky,LEFT_THUMB_DEAD_ZONE)
+                    //INVERT X
+                    NewController.StickFramex = x
+                    NewController.StickFramey = y
+                    OCGPtoUse :=&OldController.padButtons.(game_pad)
+                    NCGPtoUse :=&NewController.padButtons.(game_pad)
+                    ProcessAnalogAsDidigtalButton((NewController.StickFramex<-DigitalThreshold?true:false),&OCGPtoUse.Left,&NCGPtoUse.Left)
+                    ProcessAnalogAsDidigtalButton((NewController.StickFramex>DigitalThreshold?true:false),&OCGPtoUse.Right,&NCGPtoUse.Right)
+                    ProcessAnalogAsDidigtalButton((NewController.StickFramey<-DigitalThreshold?true:false),&OCGPtoUse.Up,&NCGPtoUse.Up)
+                    ProcessAnalogAsDidigtalButton((NewController.StickFramey>DigitalThreshold?true:false),&OCGPtoUse.Down,&NCGPtoUse.Down)
                     NewController.IsAnalgo = true
-                    fmt.println(x)
-                    NewInput.Controllers[ControllerIndex] = NewController
+                    //NewInput.Controllers[ControllerIndex+1] = NewController
 
 
 
                 }
                 else{
-                    //TODO Controller not available
+                    NewController.isConnected=false
                 }
                 Vibration:w.XINPUT_VIBRATION
                 Vibration.wRightMotorSpeed = 60000
@@ -621,6 +708,7 @@ main :: proc() {
             LastCycleCount = EndCycleCount
            //TODO Can write a little func to do this so you just pingong back and forth
             Temp :^game_input = NewInput
+            //fmt.println(NewInput.Controllers[0].padButtons)
             NewInput = OldInput
             OldInput = Temp
     }
