@@ -94,7 +94,7 @@ game_output_sound_buffer::struct{
 }
 
 GameOutputSound::proc(SoundBuffer: ^game_output_sound_buffer,ToneHz:u32){
-    Soundlevel :i16=1000
+    Soundlevel :i16=600
     SquareWavePeriod:u32  = 48000/ToneHz
     for SampleIndex:u32= 0; SampleIndex<SoundBuffer.SampleCount;SampleIndex+=1{
         SampleValue:i16 = ((u32(SampleIndex)/cast(u32)SquareWavePeriod/2)%2)==0?Soundlevel:-1*Soundlevel
@@ -167,7 +167,11 @@ HandleInput::proc(GameState:^game_state,Input1:^game_controller_input){
 
     }
 }
-GameUpdateAndRender::proc(Memory:^game_memory,Input:^game_input,Buffer: ^game_offscreen_buffer,  SoundBuffer: ^game_output_sound_buffer){
+GameGetSoundSamples::proc(Memory:^game_memory, SoundBuffer: ^game_output_sound_buffer){
+    GameState:^game_state = cast(^game_state)Memory.PermanentStorage
+    GameOutputSound(SoundBuffer,GameState.ToneHz)
+}
+GameUpdateAndRender::proc(Memory:^game_memory,Input:^game_input,Buffer: ^game_offscreen_buffer){
     //TODO Possibly implement the game to be told where in time to put sound
    Input0 :^game_controller_input = &Input.Controllers[0]
    Input1 :^game_controller_input = &Input.Controllers[1]
@@ -196,7 +200,6 @@ GameUpdateAndRender::proc(Memory:^game_memory,Input:^game_input,Buffer: ^game_of
    for &controller in Input.Controllers{
    HandleInput(GameState,&controller)
    }
-    GameOutputSound(SoundBuffer,GameState.ToneHz)
     RenderWeirdGradient(Buffer,GameState)
 }
 

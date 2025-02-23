@@ -12,7 +12,6 @@ import "core:strconv"
 import "base:intrinsics"
 import os "core:os"
 
-//import dx "vendor:directx"
 /*TODO
     Save Game Locations
     Hand on exe file
@@ -35,6 +34,9 @@ GlobalSecondaryBuffer: ^IDirectSoundBuffer
 GameMemory:game_memory
 win32Memory:win32_game_memory
 PerfCounterFrequency : w.LARGE_INTEGER
+
+SoundisValid:bool=false
+
 win32GetWallClock:: #force_inline proc()->w.LARGE_INTEGER{
     Result:w.LARGE_INTEGER
     w.QueryPerformanceCounter(&Result)
@@ -195,6 +197,7 @@ win32_sound_output::struct{
     SecondaryBufferSize :u32,
     SoundLevel:i16,
     LatencySampleCount:u32,
+    SafetyBytes:u32,
 }
 
 win32ClearBuffer::proc(SoundOutput: ^win32_sound_output){
@@ -514,7 +517,9 @@ main :: proc() {
         SoundOutput.BytesPerSample = size_of(i16)*2
         SoundOutput.SecondaryBufferSize = SoundOutput.SamplesPerSecond*cast(u32)SoundOutput.BytesPerSample
         SoundOutput.SoundLevel = 1000
-        SoundOutput.LatencySampleCount = SoundOutput.SamplesPerSecond/15
+        SoundOutput.LatencySampleCount = 3*SoundOutput.SamplesPerSecond/(cast(u32)GameUpdateHz)
+        SoundOutput.SafetyBytes = 8*SoundOutput.SamplesPerSecond*SoundOutput.BytesPerSample/(cast(u32)GameUpdateHz)
+        fmt.println("SafetyBytes" ,SoundOutput.SafetyBytes)
 
 
         InitDSound(GameWindow,SoundOutput.SamplesPerSecond,48000*size_of(i16)*2,48000*size_of(i16)*2)
@@ -556,11 +561,15 @@ main :: proc() {
         KBGPtoUse := &KeyboardController.padButtons.(game_pad)
 
 
+        //TODO Probabl should be global
+        FlipWallClock:w.LARGE_INTEGER=win32GetWallClock()
+
         for running {
            KBGPtoUse^.Down.HalfTransitionCount=0
            KBGPtoUse^.Up.HalfTransitionCount=0
            KBGPtoUse^.Right.HalfTransitionCount=0
            KBGPtoUse^.Left.HalfTransitionCount=0
+           KBGPtoUse^.Start.HalfTransitionCount=0
 
            KBGPtoUse^.Action1.HalfTransitionCount=0
            KBGPtoUse^.Action2.HalfTransitionCount=0
@@ -592,10 +601,7 @@ main :: proc() {
                     OldController.padButtons = OCGP
                     NewController.padButtons = NCGP
 
-                     //A :bool= Pad^.wButtons&w.XINPUT_GAMEPAD_BUTTON{w.XINPUT_GAMEPAD_BUTTON_BIT.A} == w.XINPUT_GAMEPAD_BUTTON{w.XINPUT_GAMEPAD_BUTTON_BIT.A}
                     if NCGPtoUse, ok:= &NewController.padButtons.(game_pad);ok{
-                        //Pleaes GIt don't be a turdjj
-
                         OCGPtoUse :=&OldController.padButtons.(game_pad)
                     ProcessDidigtalButton(Pad^.wButtons,&OCGPtoUse.Action3,&NCGPtoUse.Action3,w.XINPUT_GAMEPAD_BUTTON_BIT.A)
                     ProcessDidigtalButton(Pad^.wButtons,&OCGPtoUse.Action1,&NCGPtoUse.Action1,w.XINPUT_GAMEPAD_BUTTON_BIT.B)
@@ -646,39 +652,9 @@ main :: proc() {
                 w.XInputSetState(cast(w.XUSER)0,&Vibration)
             }
             //TEMP CODE TO PUT THE BUFFER ON THE STACK - TODO Replace
-            PlayerCursor: w.DWORD
-            WriteCursor: w.DWORD
-            SampleIndextoLock: w.DWORD
-            WritePointer: w.DWORD=0
-            BytesToWrite :w.DWORD=0
-            SoundisValid:bool=false
 
 
-            gp_ok:= GlobalSecondaryBuffer->GetCurrentPosition(&PlayerCursor, &WriteCursor)
 
-            if gp_ok < 0 {
-                fmt.eprintf("Error in GetCurrentPosition: 0x%X\n",u32(u64(gp_ok) & 0x0000_0000_FFFF_FFFF))
-                return
-            }
-
-                SampleIndextoLock  = (SoundOutput.RunningSampleIndex*cast(u32)SoundOutput.BytesPerSample)%SoundOutput.SecondaryBufferSize
-                TargerCursor:=(PlayerCursor+(SoundOutput.LatencySampleCount*SoundOutput.BytesPerSample))%SoundOutput.SecondaryBufferSize
-            if SampleIndextoLock>TargerCursor{
-                    fmt.println("here")
-                    BytesToWrite = SoundOutput.SecondaryBufferSize-SampleIndextoLock
-                    BytesToWrite +=TargerCursor
-                } else{
-                    BytesToWrite = TargerCursor - SampleIndextoLock
-
-                }
-                SoundisValid=true
-
-
-            SoundBuffer :game_output_sound_buffer
-            SoundBuffer.SamplesPerSecond = SoundOutput.SamplesPerSecond
-            SoundBuffer.SampleCount = BytesToWrite/SoundOutput.BytesPerSample
-            SoundBuffer.SampleOut = Samples
-            SoundBuffer.ToneHz =440*2
 
             Buffer:game_offscreen_buffer
             Buffer.memory = Global_Back_Buffer.memory
@@ -686,13 +662,70 @@ main :: proc() {
             Buffer.Height = Global_Back_Buffer.Height
             Buffer.Pitch = Global_Back_Buffer.Pitch
 
-           GameUpdateAndRender(&GameMemory,NewInput,&Buffer, &SoundBuffer)
+           GameUpdateAndRender(&GameMemory,NewInput,&Buffer)
 
+           PlayerCursor: w.DWORD
+           WriteCursor: w.DWORD
+           SampleIndextoLock: w.DWORD
+           WritePointer: w.DWORD=0
+           BytesToWrite :w.DWORD=0
+
+
+
+           FromBegintoAudioSec:=win32GetSecondsElapsed(FlipWallClock,win32GetWallClock())
+           gp_ok:= GlobalSecondaryBuffer->GetCurrentPosition(&PlayerCursor, &WriteCursor)
+
+           if gp_ok ==0  {
+
+           if !SoundisValid{
+               SoundOutput.RunningSampleIndex=WriteCursor/SoundOutput.BytesPerSample
+               SoundisValid=true
+           }
+                SampleIndextoLock = 0;
+                TargetCursor:w.DWORD = 0
+                BytesToWrite =0
+               SampleIndextoLock  = (SoundOutput.RunningSampleIndex*cast(u32)SoundOutput.BytesPerSample)%SoundOutput.SecondaryBufferSize
+
+                ExpectedSoundBytesPerFrame:= SoundOutput.SamplesPerSecond*SoundOutput.BytesPerSample/u32(GameUpdateHz)
+                SecondsTillFlip:= SecondsPerFrame-FromBegintoAudioSec
+                ExpectedBytestillFlip:=cast(w.DWORD)((SecondsTillFlip/SecondsPerFrame)*f32(ExpectedSoundBytesPerFrame))
+//               ExpectedFrameBoundaryByte:= PlayerCursor+ExpectedSoundBytesPerFrame
+           ExpectedFrameBoundaryByte:= PlayerCursor+ExpectedBytestillFlip
+                SafeWriteCursor:=WriteCursor
+                if SafeWriteCursor<PlayerCursor{
+                    SafeWriteCursor+=SoundOutput.SecondaryBufferSize
+                }
+                assert(SafeWriteCursor>=PlayerCursor)
+               AudioCardLowLat:= SafeWriteCursor<ExpectedFrameBoundaryByte
+
+               if false && AudioCardLowLat{
+
+                   TargetCursor=(ExpectedFrameBoundaryByte+ExpectedSoundBytesPerFrame)%SoundOutput.SecondaryBufferSize
+                }
+               else{
+
+                   TargetCursor=(WriteCursor+ExpectedFrameBoundaryByte+SoundOutput.SafetyBytes)%SoundOutput.SecondaryBufferSize
+               }
+               if SampleIndextoLock>TargetCursor{
+                   BytesToWrite = SoundOutput.SecondaryBufferSize-SampleIndextoLock
+                   BytesToWrite +=TargetCursor
+               } else{
+                   BytesToWrite = TargetCursor - SampleIndextoLock
+               }
+           SoundBuffer :game_output_sound_buffer
+           SoundBuffer.SamplesPerSecond = SoundOutput.SamplesPerSecond
+           SoundBuffer.SampleCount = BytesToWrite/SoundOutput.BytesPerSample
+           SoundBuffer.SampleOut = Samples
+           SoundBuffer.ToneHz =440*2
+           GameGetSoundSamples(&GameMemory, &SoundBuffer)
+
+           win32FillSoundBuffer(&SoundOutput,SampleIndextoLock,BytesToWrite, &SoundBuffer)
+           }
+           else{
+               SoundisValid = false
+           }
             if SoundisValid{
-                win32FillSoundBuffer(&SoundOutput,SampleIndextoLock,BytesToWrite, &SoundBuffer)
             }
-
-
 
             EndCycleCount:= intrinsics.read_cycle_counter()
             CycleElapsed:=EndCycleCount - LastCycleCount
@@ -714,12 +747,12 @@ main :: proc() {
            }
            EndCounter:w.LARGE_INTEGER = win32GetWallClock()
            MSPFrame:f32=1000.0*win32GetSecondsElapsed(LastCounter,win32GetWallClock())
-           fmt.println(MSPFrame)
            LastCounter = EndCounter
 
            DevContext:w.HDC = w.GetDC(GameWindow)
            Dimension := GetWindowDimension(GameWindow)
            CopyBufferToWindow(&Global_Back_Buffer,DevContext,Dimension.width,Dimension.height, 0,0,Dimension.width,Dimension.height)
+           FlipWallClock = win32GetWallClock()
            w.ReleaseDC(GameWindow,DevContext)
 
             LastCycleCount = EndCycleCount
