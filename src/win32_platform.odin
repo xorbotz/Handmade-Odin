@@ -720,6 +720,7 @@ main :: proc() {
            SoundBuffer.SampleOut = Samples
            SoundBuffer.ToneHz =440*2
            GameGetSoundSamples(&GameMemory, &SoundBuffer)
+           //Change to Commit.
 
            win32FillSoundBuffer(&SoundOutput,SampleIndextoLock,BytesToWrite, &SoundBuffer)
            }
