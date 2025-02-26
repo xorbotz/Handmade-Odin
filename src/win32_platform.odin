@@ -44,7 +44,9 @@ win32GetWallClock:: #force_inline proc()->w.LARGE_INTEGER{
 }
 win32GetSecondsElapsed:: #force_inline proc(Start:w.LARGE_INTEGER,End:w.LARGE_INTEGER)->f32{
     return (f32(End-Start))/f32(PerfCounterFrequency)
+
 }
+
 ReadEntireFile::proc (filename:string) ->([]u8,^[]u8,i64){
 
     file_handle,handle := os.open(filename)
