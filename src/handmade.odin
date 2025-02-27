@@ -147,6 +147,7 @@ HandleInput::proc(GameState:^game_state,Input1:^game_controller_input){
             GameState.Red=0
             GameState.Blue=1
         }
+        //push please
 
         if buttons.Action3.EndedDown{
             fmt.println("Action2")
