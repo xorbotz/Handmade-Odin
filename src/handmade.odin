@@ -4,6 +4,7 @@ import "core:math"
 import "core:fmt"
 
 debug_mode:bool= true
+Game_Mem:^game_memory
 
 game_memory::struct{
     isInit:bool,
@@ -167,11 +168,36 @@ HandleInput::proc(GameState:^game_state,Input1:^game_controller_input){
 
     }
 }
-GameGetSoundSamples::proc(Memory:^game_memory, SoundBuffer: ^game_output_sound_buffer){
+
+@(export)
+game_hot_reloaded::proc(mem:^game_memory){
+    Game_Mem = mem
+}
+@(export)
+game_init::proc(PSs:u64, PS:rawptr, TSS:u64,TS:rawptr){
+    Game_Mem = new(game_memory)
+    Game_Mem.Permanentstoragesize=PSs
+    Game_Mem.PermanentStorage = PS
+
+    Game_Mem.Transientstoragesize = TSS
+    Game_Mem.Transientstorage = TS
+}
+@(export)
+game_sd::proc(){
+    free(Game_Mem)
+}
+@(export)
+game_mem_ptr::proc()->rawptr{
+    return Game_Mem
+}
+@(export)
+game_GameGetSoundSamples::proc( Memory:^game_memory,SoundBuffer: ^game_output_sound_buffer)->bool{
     GameState:^game_state = cast(^game_state)Memory.PermanentStorage
     GameOutputSound(SoundBuffer,GameState.ToneHz)
+    return true
 }
-GameUpdateAndRender::proc(Memory:^game_memory,Input:^game_input,Buffer: ^game_offscreen_buffer){
+@(export)
+game_GameUpdateAndRender::proc(Memory:^game_memory,Input:^game_input,Buffer: ^game_offscreen_buffer)->bool{
     //TODO Possibly implement the game to be told where in time to put sound
    Input0 :^game_controller_input = &Input.Controllers[0]
    Input1 :^game_controller_input = &Input.Controllers[1]
@@ -180,9 +206,6 @@ GameUpdateAndRender::proc(Memory:^game_memory,Input:^game_input,Buffer: ^game_of
    file_name:="src/lol.txt"
    file_name_w:="src/test1.txt"
 
-   if debug_mode{
-   assert(size_of(GameState)<=Memory.Permanentstoragesize)
-    }
 
    if !Memory.isInit{
        GameState.ToneHz = 256*4
@@ -191,15 +214,16 @@ GameUpdateAndRender::proc(Memory:^game_memory,Input:^game_input,Buffer: ^game_of
        GameState.Blue=1
        GameState.Green=1
        //TODO This should almost certainly just be 1 multipointer but have to cross that bridge later
-       Bitmapdata,Bitmapmemory, BMSize:= ReadEntireFile(file_name)
-       PlatformWriteEntireFile(file_name_w,Bitmapdata,int(BMSize))
+      // Bitmapdata,Bitmapmemory, BMSize:= ReadEntireFile(file_name)
+      // PlatformWriteEntireFile(file_name_w,Bitmapdata,int(BMSize))
        Memory.isInit = true
-       DeleteFileData(Bitmapdata, Bitmapmemory)
+       //DeleteFileData(Bitmapdata, Bitmapmemory)
 
    }
    for &controller in Input.Controllers{
    HandleInput(GameState,&controller)
    }
     RenderWeirdGradient(Buffer,GameState)
+    return true
 }
 

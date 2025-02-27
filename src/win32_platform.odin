@@ -6,11 +6,9 @@ import "base:runtime"
 import vmem "core:mem/virtual"
 import "core:mem"
 import "core:dynlib"
-import "core:math"
-import "core:strings"
-import "core:strconv"
 import "base:intrinsics"
 import os "core:os"
+import libc "core:c/libc"
 
 /*TODO
     Save Game Locations
@@ -36,6 +34,58 @@ win32Memory:win32_game_memory
 PerfCounterFrequency : w.LARGE_INTEGER
 
 SoundisValid:bool=false
+//hotreloadcode
+game_api_version:=0
+GameAPI::struct{
+    init:proc(u64, rawptr,u64,rawptr),
+    sd:proc(),
+    mem_ptr:proc()->rawptr,
+    GameGetSoundSamples:proc(rawptr,rawptr)->bool,
+    GameUpdateAndRender:proc(rawptr,rawptr,rawptr)->bool,
+    hot_reloaded:proc(rawptr),
+    lib:dynlib.Library,
+    dll_time:os.File_Time,
+    api_version:int,
+}
+
+load_game_api:: proc(api_version:int)->(GameAPI,bool){
+    dll_time,dll_time_err:=os.last_write_time_by_name("game.dll")
+    if dll_time_err!=os.ERROR_NONE{
+    fmt.println("FETCHING DLL FAILED")
+    return {},false
+    }
+    dll_name:=fmt.tprintf("game_{0}.dll",api_version)
+    copy_cmd:=fmt.ctprintf("copy game.dll {0}",dll_name)
+    if libc.system(copy_cmd) !=0{
+        fmt.println("FAILED TO COPY game.dll to {0}",dll_name)
+        return {},false
+    }
+    lib,lib_ok:= dynlib.load_library(dll_name)
+    if !lib_ok{
+        fmt.println("FAILED TO LOAD GAME DLL")
+        return {},false
+    }
+    api:GameAPI
+    _,ok:= dynlib.initialize_symbols(&api,dll_name,"game_","lib")
+    if !ok{
+        fmt.printfln("Failed initialize symbols: {0}",dynlib.last_error())
+    }
+
+    api.api_version = api_version
+    api.dll_time = dll_time
+    return api,true
+
+}
+
+unload_game_api:: proc(api:GameAPI){
+    if api.lib!=nil{
+        dynlib.unload_library(api.lib)
+    }
+    del_cmd:=fmt.ctprintf("del game_{0}.dll",api.api_version)
+    if libc.system(del_cmd)!=0{
+        fmt.println("FAILED TO REMOVE game_{0}.dll copy")
+    }
+}
 
 win32GetWallClock:: #force_inline proc()->w.LARGE_INTEGER{
     Result:w.LARGE_INTEGER
@@ -475,6 +525,13 @@ wndproc:: proc "stdcall"( window: w.HWND, msg:w.UINT, wparam: w.WPARAM,lparam: w
 main :: proc() {
     Global_Back_Buffer.arena_err = vmem.arena_init_growing(&Global_Back_Buffer.bmArena)
     Global_Back_Buffer.arena_alloc = vmem.arena_allocator(&Global_Back_Buffer.bmArena)
+    game_api_version = 0
+    game_api,game_api_ok : = load_game_api(game_api_version)
+    if !game_api_ok {
+        fmt.println("FAILED TO LOAD GAME API")
+        return
+    }
+    game_api_version+=1
 
     colorcount:^int = new(int)
     colorcount^ = 0
@@ -539,6 +596,8 @@ main :: proc() {
         GameMemory.Transientstorage =make_multi_pointer([^]rawptr,GameMemory.Permanentstoragesize,win32Memory.arena_alloc)//&bmarena
         fmt.println(size_of(GameMemory.PermanentStorage))
 
+        game_api.init(GameMemory.Permanentstoragesize,GameMemory.PermanentStorage,GameMemory.Transientstoragesize,GameMemory.Transientstorage)
+
 
 
         //        win32FillSoundBuffer(&SoundOutput,0,(SoundOutput.LatencySampleCount*SoundOutput.BytesPerSample),&SoundBuffer)
@@ -567,6 +626,18 @@ main :: proc() {
         FlipWallClock:w.LARGE_INTEGER=win32GetWallClock()
 
         for running {
+            dll_time,dll_timer_err:= os.last_write_time_by_name("game.dll")
+            reload:=dll_timer_err==os.ERROR_NONE && game_api.dll_time!=dll_time
+            if reload{
+                new_api,new_api_ok := load_game_api(game_api_version)
+                if new_api_ok {
+                    game_memory:= game_api.mem_ptr()
+                    unload_game_api(game_api)
+                    game_api = new_api
+                    game_api.hot_reloaded(game_memory)
+                    game_api_version+=1
+                }
+            }
            KBGPtoUse^.Down.HalfTransitionCount=0
            KBGPtoUse^.Up.HalfTransitionCount=0
            KBGPtoUse^.Right.HalfTransitionCount=0
@@ -664,7 +735,7 @@ main :: proc() {
             Buffer.Height = Global_Back_Buffer.Height
             Buffer.Pitch = Global_Back_Buffer.Pitch
 
-           GameUpdateAndRender(&GameMemory,NewInput,&Buffer)
+           game_api.GameUpdateAndRender(cast(^game_memory)game_api.mem_ptr(),NewInput,&Buffer)
 
            PlayerCursor: w.DWORD
            WriteCursor: w.DWORD
@@ -719,7 +790,8 @@ main :: proc() {
            SoundBuffer.SampleCount = BytesToWrite/SoundOutput.BytesPerSample
            SoundBuffer.SampleOut = Samples
            SoundBuffer.ToneHz =440*2
-           GameGetSoundSamples(&GameMemory, &SoundBuffer)
+           game_api.GameGetSoundSamples(cast(^game_memory)game_api.mem_ptr(), &SoundBuffer)
+
            //Change to Commit.
 
            win32FillSoundBuffer(&SoundOutput,SampleIndextoLock,BytesToWrite, &SoundBuffer)
@@ -765,6 +837,8 @@ main :: proc() {
             NewInput = OldInput
             OldInput = Temp
     }
+        //game_api.sd()
+        unload_game_api(game_api)
  }
     else{
         fmt.println("we did not create the window!")
