@@ -436,8 +436,9 @@ win32_game_memory::struct{
 
 CopyBufferToWindow:: proc (Buffer:^win32_offscreen_buffer,DevContext: w.HDC, WindowWidth:i32,WindowHeight:i32, x,y,width,height:i32){
 
+    //Note Changed BLIT to be 1x1 instead of stretching with the window
     w.StretchDIBits(DevContext,
-        0,0,WindowWidth,WindowHeight,
+        0,0,Buffer.Width,Buffer.Height,//WindowWidth, WindowHeight,
         0,0,Buffer.Width,Buffer.Height,
         Buffer.memory,Buffer.infoadr,w.DIB_RGB_COLORS,w.SRCCOPY)
 

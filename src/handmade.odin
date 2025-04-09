@@ -143,23 +143,23 @@ HandleInput::proc(GameState:^game_state,Input1:^game_controller_input){
 
         if buttons.Action2.EndedDown{
             fmt.println("Action2")
-            GameState.Green=1
+            GameState.Green=0
             GameState.Red=0
-            GameState.Blue=1
+            GameState.Blue=0
         }
         //push please
 
         if buttons.Action3.EndedDown{
-            fmt.println("Action2")
+            fmt.println("Action3")
             GameState.Green=1
-            GameState.Red=1
+            GameState.Red=2
             GameState.Blue=0
         }
 
         if buttons.Action4.EndedDown{
-            fmt.println("Action2")
-            GameState.Green=1
-            GameState.Red=1
+            fmt.println("Action4")
+            GameState.Green=0
+            GameState.Red=0
             GameState.Blue=1
         }
     case [9]game_button_state:
