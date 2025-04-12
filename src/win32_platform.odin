@@ -40,8 +40,8 @@ GameAPI::struct{
     init:proc(u64, rawptr,u64,rawptr),
     sd:proc(),
     mem_ptr:proc()->rawptr,
-    GameGetSoundSamples:proc(rawptr,rawptr)->bool,
-    GameUpdateAndRender:proc(rawptr,rawptr,rawptr)->bool,
+    GameGetSoundSamples:proc(rawptr,rawptr,rawptr)->bool,
+    GameUpdateAndRender:proc(rawptr,rawptr,rawptr,rawptr)->bool,
     hot_reloaded:proc(rawptr),
     lib:dynlib.Library,
     dll_time:os.File_Time,
@@ -566,6 +566,14 @@ main :: proc() {
     fmt.println(cast(u16)w.XINPUT_GAMEPAD_BUTTON{w.XINPUT_GAMEPAD_BUTTON_BIT.A})
     if (GameWindow!=nil){
         msg:w.MSG
+        refDC:=w.GetDC(GameWindow)
+        posRate:= w.GetDeviceCaps(refDC,0x74)
+        w.ReleaseDC(GameWindow, refDC)
+
+        if posRate > 1{
+            MonitorRefresh=cast(int)posRate
+            GameUpdateHz:= MonitorRefresh/2
+        }
 
         SoundOutput : win32_sound_output
         SoundOutput.SamplesPerSecond = 48000
@@ -729,14 +737,14 @@ main :: proc() {
 
 
 
-
+            Thread: thread_context ={}
             Buffer:game_offscreen_buffer
             Buffer.memory = Global_Back_Buffer.memory
             Buffer.Width = Global_Back_Buffer.Width
             Buffer.Height = Global_Back_Buffer.Height
             Buffer.Pitch = Global_Back_Buffer.Pitch
 
-           game_api.GameUpdateAndRender(cast(^game_memory)game_api.mem_ptr(),NewInput,&Buffer)
+           game_api.GameUpdateAndRender(&Thread, cast(^game_memory)game_api.mem_ptr(),NewInput,&Buffer)
 
            PlayerCursor: w.DWORD
            WriteCursor: w.DWORD
@@ -791,7 +799,7 @@ main :: proc() {
            SoundBuffer.SampleCount = BytesToWrite/SoundOutput.BytesPerSample
            SoundBuffer.SampleOut = Samples
            SoundBuffer.ToneHz =440*2
-           game_api.GameGetSoundSamples(cast(^game_memory)game_api.mem_ptr(), &SoundBuffer)
+           game_api.GameGetSoundSamples(&Thread, cast(^game_memory)game_api.mem_ptr(), &SoundBuffer)
 
            //Change to Commit.
 
