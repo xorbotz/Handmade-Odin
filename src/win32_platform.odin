@@ -194,7 +194,7 @@ win32ProcessPendingMessages :: proc(KeyboardController: ^game_controller_input) 
 
 				} else if VKCode == 'S' {
 
-					fmt.println("S is pressed", isDown)
+					//fmt.println("S is pressed", isDown)
 					KeyboardProcessDidigtalButton(&KBGPtoUse.Down, isDown)
 
 				} else if VKCode == 'D' {
@@ -234,7 +234,7 @@ win32ProcessPendingMessages :: proc(KeyboardController: ^game_controller_input) 
 			}
 
 			//NewInput.Controllers[0].padButtons = KBGPtoUse
-			fmt.println(KBGPtoUse.Down)
+			//fmt.println(KBGPtoUse.Down)
 		//fmt.println(KeyboardController)j
 		case:
 			w.TranslateMessage(&msg)
@@ -496,12 +496,15 @@ CopyBufferToWindow :: proc(
 	WindowHeight: i32,
 	x, y, width, height: i32,
 ) {
+	OffsetX: i32 = 10
+	OffsetY: i32 = 10
+
 
 	//Note Changed BLIT to be 1x1 instead of stretching with the window
 	w.StretchDIBits(
 		DevContext,
-		0,
-		0,
+		OffsetX,
+		OffsetY,
 		Buffer.Width,
 		Buffer.Height, //WindowWidth, WindowHeight,
 		0,
@@ -671,7 +674,7 @@ main :: proc() {
 
 		if posRate > 1 {
 			MonitorRefresh = cast(int)posRate
-			GameUpdateHz := MonitorRefresh / 2
+			GameUpdateHz := MonitorRefresh
 		}
 
 		SoundOutput: win32_sound_output
@@ -744,6 +747,7 @@ main :: proc() {
 		NewInput: ^game_input = &Input[0]
 		//NewInput.Controllers
 		OldInput: ^game_input = &Input[1]
+		NewInput.dtForFrame = SecondsPerFrame
 		//TODO I fixed the keyoard, I need to fix the controllers
 		OldController: ^game_controller_input
 		NewController: ^game_controller_input
