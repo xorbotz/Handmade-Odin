@@ -381,17 +381,19 @@ HandleInput :: proc(
 	//NewPlayerY := GameState.PlayerY + dtForFrame * movementScale * dPlayerY //dist_to_pixely(map1, dPlayerY) //+ dtForFrame * movementScale * dPlayerY
 	NewPlayerX := GameState.Player_Position.TileOffsetX + dtForFrame * movementScale * dPlayerX //+ dist_to_pixelx(map1, dPlayerX) //+ dtForFrame * movementScale * dPlayerX
 	NewPlayerY := GameState.Player_Position.TileOffsetY + dtForFrame * movementScale * dPlayerY //dist_to_pixely(map1, dPlayerY) //+ dtForFrame * movementScale * dPlayerY
+
 	P1 := GameState.Player_Position
 	P2 := GameState.Player_Position
 	P3 := GameState.Player_Position
+
 	P1.TileOffsetX = NewPlayerX
-	P1.TileOffsetY = NewPlayerY
+	P1.TileOffsetY = NewPlayerY - 5
 
-	P2.TileOffsetX = NewPlayerX
-	P2.TileOffsetY = NewPlayerY
+	P2.TileOffsetX = NewPlayerX - .52 * world.TileSidePixels
+	P2.TileOffsetY = NewPlayerY - 4
 
-	P3.TileOffsetX = NewPlayerX
-	P3.TileOffsetY = NewPlayerY
+	P3.TileOffsetX = NewPlayerX + .5 * .25 * world.TileSidePixels
+	P3.TileOffsetY = NewPlayerY - 4
 
 	Recon_Position(&P1)
 	Recon_Position(&P2)
@@ -399,6 +401,7 @@ HandleInput :: proc(
 
 
 	if IsWorldMapPointEmpty(&P1) && IsWorldMapPointEmpty(&P2) && IsWorldMapPointEmpty(&P3) {
+		P1.TileOffsetY += 5
 
 		GameState.Player_Position = P1
 		world.currentx = int(GameState.Player_Position.TileMapX)
