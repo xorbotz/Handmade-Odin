@@ -66,7 +66,8 @@ Recon_Position :: #force_inline proc(Player_Position: ^global_position) {
 
 		fmt.println("Current Y: ", world.currenty)
 		Player_Position.TileY = 0 // world.TileSidePixels + 5
-	} else if Player_Position.TileY == 0 && Player_Position.TileOffsetY <= 40 { 	//f32(world.TileSidePixels) {
+		Player_Position.TileOffsetY = 45
+	} else if Player_Position.TileY == 0 && Player_Position.TileOffsetY <= 40 { 	//f32(world.TileSidePixels) {F0;
 		fmt.println("Moving up")
 		Player_Position.TileMapY -= 1
 		fmt.println("Current Y: ", world.currenty)
@@ -74,16 +75,17 @@ Recon_Position :: #force_inline proc(Player_Position: ^global_position) {
 	} else if Player_Position.TileX == mapcountx {
 		fmt.println("Moving Right")
 		Player_Position.TileMapX += 1
-
 		fmt.println("Current x ", world.currentx)
 		Player_Position.TileX = 0 //world.Upperleftstartx + 1 //world.TileSidePixels + 5
+		Player_Position.TileOffsetX = 45
 	} else if Player_Position.TileX == 0 &&
-	   Player_Position.TileOffsetX <= world.Upperleftstartx { 	//f32(world.TileSidePixels) {
-		fmt.println("Moving Left")
+	   Player_Position.TileOffsetX <= 44  /*world.Upperleftstartx*/{ 	//f32(world.TileSidePixels) {
+		//		fmt.println("Moving Left")
 		Player_Position.TileMapX -= 1
-		fmt.println("Current X: ", world.currentx)
+		//		fmt.println("Current X: ", world.currentx)
 		Player_Position.TileX = mapcountx - 1
 		//GameState.PlayerX = f32(world.TileSidePixels) + world.TileSidePixels * f32((mapcountx - 1))
+		Player_Position.TileOffsetX = 68
 	}
 
 
@@ -374,7 +376,7 @@ HandleInput :: proc(
 		}
 
 	}
-	movementScale: f32 = 64.0
+	movementScale: f32 = 64.0 //64.0
 
 
 	//NewPlayerX := GameState.PlayerX + dtForFrame * movementScale * dPlayerX //+ dist_to_pixelx(map1, dPlayerX) //+ dtForFrame * movementScale * dPlayerX
@@ -387,13 +389,13 @@ HandleInput :: proc(
 	P3 := GameState.Player_Position
 
 	P1.TileOffsetX = NewPlayerX
-	P1.TileOffsetY = NewPlayerY - 5
+	P1.TileOffsetY = NewPlayerY
 
 	P2.TileOffsetX = NewPlayerX - .52 * world.TileSidePixels
-	P2.TileOffsetY = NewPlayerY - 4
+	P2.TileOffsetY = NewPlayerY
 
 	P3.TileOffsetX = NewPlayerX + .5 * .25 * world.TileSidePixels
-	P3.TileOffsetY = NewPlayerY - 4
+	P3.TileOffsetY = NewPlayerY
 
 	Recon_Position(&P1)
 	Recon_Position(&P2)
@@ -401,14 +403,22 @@ HandleInput :: proc(
 
 
 	if IsWorldMapPointEmpty(&P1) && IsWorldMapPointEmpty(&P2) && IsWorldMapPointEmpty(&P3) {
-		P1.TileOffsetY += 5
+
 
 		GameState.Player_Position = P1
-		world.currentx = int(GameState.Player_Position.TileMapX)
-		world.currenty = int(GameState.Player_Position.TileMapY)
+
+		if i32(world.currentx) != GameState.Player_Position.TileMapX {
+			world.currentx = int(GameState.Player_Position.TileMapX)
+
+			fmt.println("world lol:", world.currenty)
+		}
+		if i32(world.currenty) != GameState.Player_Position.TileMapY {
+			world.currenty = int(GameState.Player_Position.TileMapY)
+			fmt.println("world lol:", world.currenty)
+		}
 
 		/*
-		GameState.PlayerX = NewPlayerX
+		vvGameState.PlayerX = NewPlayerX
 
 		GameState.PlayerY = NewPlayerY
 		x, y := getTile(world, GameState.PlayerX, GameState.PlayerY)
@@ -734,12 +744,6 @@ game_GameUpdateAndRender :: proc(
 	//		PlayerT = tile_map[world.currenty][world.currentx].Upperleftstarty
 	//	}
 
-	fmt.println(
-		"OffsetX: ",
-		GameState.Player_Position.TileOffsetX,
-		"OffsetY: ",
-		GameState.Player_Position.TileOffsetY,
-	)
 	DrawRect(
 		Buffer,
 		PlayerL,
