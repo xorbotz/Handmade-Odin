@@ -37,7 +37,7 @@ SoundisValid: bool = false
 //hotreloadcode
 game_api_version := 0
 GameAPI :: struct {
-	init:                proc(_: u64, _: rawptr, _: u64, _: rawptr),
+	init:                proc(_: u64, _: rawptr, _: u64, _: rawptr, _: ^mem.Allocator),
 	sd:                  proc(),
 	mem_ptr:             proc() -> rawptr,
 	GameGetSoundSamples: proc(_: rawptr, _: rawptr, _: rawptr) -> bool,
@@ -711,7 +711,7 @@ main :: proc() {
 
 		win32Memory.arena_err = vmem.arena_init_growing(&win32Memory.bmArena)
 		win32Memory.arena_alloc = vmem.arena_allocator(&win32Memory.bmArena)
-		GameMemory.Permanentstoragesize = mem.Megabyte * 64
+		GameMemory.Permanentstoragesize = mem.Megabyte * 0
 		//TODO may have to change this from a multipointer to a slice or something I don't know...
 		GameMemory.PermanentStorage = make_multi_pointer(
 			[^]rawptr,
@@ -725,12 +725,14 @@ main :: proc() {
 			win32Memory.arena_alloc,
 		) //&bmarena
 		fmt.println(size_of(GameMemory.PermanentStorage))
+		GameMemory.PermanentStorageAlloc = vmem.arena_allocator(&win32Memory.bmArena)
 
 		game_api.init(
 			GameMemory.Permanentstoragesize,
 			GameMemory.PermanentStorage,
 			GameMemory.Transientstoragesize,
 			GameMemory.Transientstorage,
+			&GameMemory.PermanentStorageAlloc,
 		)
 
 

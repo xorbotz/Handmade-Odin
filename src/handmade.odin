@@ -3,27 +3,20 @@ package main
 import "core:fmt"
 import "core:math"
 
+import "core:mem"
+
 debug_mode: bool = true
 Game_Mem: ^game_memory
+GameState: game_state
+
+world: ^World
 mapcountx: i32 : 17
 mapcounty: i32 : 9
 
 windowSizey: u32 : 9
 windowSizex: u32 : 17
 
-world: World = {
-	TileSideM       = 1.4,
-	TileSidePixels  = 70.0,
-	Upperleftstarty = 5.0,
-	Upperleftstartx = 5.0,
-	LowerLeftStartX = 5.0,
-	LowerLeftStartY = 635.0,
-	MetersToPixels  = 70.0 / 1.4,
-	ChunkShift      = 5,
-	ChunkDim        = 32,
-	ChunkX          = 2,
-	ChunkY          = 2,
-}
+
 tile_map: [2][2]Map
 worldSizeY: i32 : 2
 worldSizeX: i32 : 2
@@ -31,11 +24,12 @@ worldSize: [2]int : {2, 2}
 
 
 game_memory :: struct {
-	isInit:               bool,
-	Permanentstoragesize: u64,
-	PermanentStorage:     rawptr,
-	Transientstoragesize: u64,
-	Transientstorage:     rawptr,
+	isInit:                bool,
+	Permanentstoragesize:  u64,
+	PermanentStorage:      rawptr,
+	Transientstoragesize:  u64,
+	Transientstorage:      rawptr,
+	PermanentStorageAlloc: mem.Allocator,
 }
 
 thread_context :: struct {
@@ -64,7 +58,10 @@ Get_Tile_Value :: proc(world: ^World, chunk_p: ^chunk_position) -> i32 {
 	map1 := &world.chunks[chunk_p.ChunkY * world.ChunkX + chunk_p.ChunkX]
 	return map1.Tilemap[chunk_p.TileY * world.ChunkDim + chunk_p.TileX]
 }
-To_Chunk_Pos :: #force_inline proc(Player_Position: ^global_position) -> chunk_position {
+To_Chunk_Pos :: #force_inline proc(
+	Player_Position: ^global_position,
+	world: ^World,
+) -> chunk_position {
 	res: chunk_position
 	res.ChunkX = Player_Position.AbsTileX >> world.ChunkShift
 	res.ChunkY = Player_Position.AbsTileY >> world.ChunkShift
@@ -74,7 +71,7 @@ To_Chunk_Pos :: #force_inline proc(Player_Position: ^global_position) -> chunk_p
 
 }
 
-Recon_Position :: #force_inline proc(Player_Position: ^global_position) {
+Recon_Position :: #force_inline proc(Player_Position: ^global_position, world: ^World) {
 
 	if Player_Position.TileOffsetX < 0 {
 		Player_Position.AbsTileX -= 1
@@ -303,18 +300,6 @@ HandleInput :: proc(
 		//	)
 
 	} else {
-		//Note do didigtal stuff
-		if GameState.p1Jump > 0 {
-			//		GameState.PlayerY = i32(
-			//			f32(GameState.PlayerY) - 4.0 * GameState.p1Jump * GameState.p1Jump,
-			//		) //*math.sin_f32(GameState.p1Jump*math.PI*.5))
-		} else {
-
-			//		GameState.PlayerY = i32(
-			//			f32(GameState.PlayerY) + 2.0 * GameState.p1Jump * GameState.p1Jump,
-			//		) //*math.sin_f32(GameState.p1Jump*math.PI*.5))
-		}
-		//GameState.PlayerY = i32(f32(GameState.PlayerY))// +10.0*math.sin_f32(GameState.p1Jump))
 	}
 	/*
 	if (GameState.PlayerY < GameState.p1JumpStart && GameState.p1Jump != 0) {
@@ -344,11 +329,6 @@ HandleInput :: proc(
 		}
 		if buttons.Action1.EndedDown {
 			fmt.println("Action1")
-			if GameState.p1Jump == 0 {
-				GameState.p1Jump = 1.0
-				//		GameState.p1JumpStart = GameState.PlayerY
-				GameState.fhJump = true
-			}
 
 		}
 
@@ -389,11 +369,13 @@ HandleInput :: proc(
 	P3.TileOffsetX = NewPlayerX + .5 * .25 * world.TileSideM
 	P3.TileOffsetY = NewPlayerY + .2
 
-	Recon_Position(&P1)
-	Recon_Position(&P2)
-	Recon_Position(&P3)
+	Recon_Position(&P1, world)
+	Recon_Position(&P2, world)
+	Recon_Position(&P3, world)
 
-	if IsWorldMapPointEmpty(&P1) && IsWorldMapPointEmpty(&P2) && IsWorldMapPointEmpty(&P3) {
+	if IsWorldMapPointEmpty(world, &P1) &&
+	   IsWorldMapPointEmpty(world, &P2) &&
+	   IsWorldMapPointEmpty(world, &P3) {
 
 		P1.TileOffsetY -= .2
 		GameState.Player_Position = P1
@@ -409,15 +391,15 @@ getTile :: #force_inline proc(world: ^World, TestfX: f32, TestfY: f32) -> (i32, 
 
 }
 
-IsWorldMapPointEmpty :: proc(Player_Pos: ^global_position) -> bool {
+IsWorldMapPointEmpty :: proc(world: ^World, Player_Pos: ^global_position) -> bool {
 
 	//if Player_Pos.TileMapX >= 0 && Player_Pos.TileMapY >= 0 {
-	chunkp := To_Chunk_Pos(Player_Pos)
-	map1 := Get_Chunk(&world, &chunkp) ///&world.maps[Player_Pos.TileMapY * i32(worldSizeX) + Player_Pos.TileMapX]
-	return IsMapPointEmpty(map1, chunkp.TileX, chunkp.TileY)
+	chunkp := To_Chunk_Pos(Player_Pos, world)
+	map1 := Get_Chunk(world, &chunkp) ///&world.maps[Player_Pos.TileMapY * i32(worldSizeX) + Player_Pos.TileMapX]
+	return IsMapPointEmpty(world, map1, chunkp.TileX, chunkp.TileY)
 }
 
-IsMapPointEmpty :: proc(map1: ^Map, TestX: u32, TestY: u32) -> bool {
+IsMapPointEmpty :: proc(world: ^World, map1: ^Map, TestX: u32, TestY: u32) -> bool {
 	PlayerTileX := TestX
 	PlayerTileY := TestY
 
@@ -436,13 +418,14 @@ game_hot_reloaded :: proc(mem: ^game_memory) {
 	Game_Mem = mem
 }
 @(export)
-game_init :: proc(PSs: u64, PS: rawptr, TSS: u64, TS: rawptr) {
+game_init :: proc(PSs: u64, PS: rawptr, TSS: u64, TS: rawptr, PS_Alloc: ^mem.Allocator) {
 	Game_Mem = new(game_memory)
 	Game_Mem.Permanentstoragesize = PSs
 	Game_Mem.PermanentStorage = PS
 
 	Game_Mem.Transientstoragesize = TSS
 	Game_Mem.Transientstorage = TS
+	Game_Mem.PermanentStorageAlloc = PS_Alloc^
 }
 @(export)
 game_sd :: proc() {
@@ -473,7 +456,7 @@ game_GameUpdateAndRender :: proc(
 	//TODO Possibly implement the game to be told where in time to put sound
 	Input0: ^game_controller_input = &Input.Controllers[0]
 	Input1: ^game_controller_input = &Input.Controllers[1]
-	GameState: ^game_state = cast(^game_state)Memory.PermanentStorage
+	//GameState: ^game_state = cast(^game_state)Memory.PermanentStorage
 	// file_name:= "C:/Users/robotics/CLionProjects/Handmade-Odin/src/lol.txt"
 	file_name := "src/lol.txt"
 	file_name_w := "src/test1.txt"
@@ -483,8 +466,21 @@ game_GameUpdateAndRender :: proc(
 		//TODO This should almost certainly just be 1 multipointer but have to cross that bridge later
 		Memory.isInit = true
 		//DeleteFileData(Bitmapdata, Bitmapmemory)
-		GameState.world =;
-		world:=GameState.world
+		GameState.world = new(World, Memory.PermanentStorageAlloc)
+		world = GameState.world
+		world.TileSideM = 1.4
+		world.TileSidePixels = 70.0
+		world.Upperleftstarty = 5.0
+		world.Upperleftstartx = 5.0
+		world.LowerLeftStartX = 5.0
+		world.LowerLeftStartY = 635.0
+
+		world.MetersToPixels = 70.0 / 1.4
+		world.ChunkShift = 5
+		world.ChunkDim = 32
+		world.ChunkX = 2
+		world.ChunkY = 2
+
 		GameState.Player_Position.AbsTileX = 10
 		GameState.Player_Position.AbsTileY = 5
 		world.currenty = 0
@@ -492,7 +488,7 @@ game_GameUpdateAndRender :: proc(
 		world.LowerLeftStartY = f32(mapcounty) * world.TileSidePixels
 		world.Window_Pos.AbsTileY = 0
 		world.Window_Pos.AbsTileX = 0
-		mappoint: ^[32][32]i32 = new([32][32]i32, context.allocator)
+		mappoint: ^[32][32]i32 = new([32][32]i32, Memory.PermanentStorageAlloc)
 
 
 		//TODO May want to move this all to a flattened array - I probably want to just move this to some fixed memory location as well - almost certainly anohtner file just called maps
@@ -556,13 +552,13 @@ game_GameUpdateAndRender :: proc(
 
 	for &controller in Input.Controllers {
 		HandleInput(
-			GameState,
+			&GameState,
 			&controller,
 			Buffer.Height,
 			Buffer.Width,
 			Input.dtForFrame,
 			&tile_map[world.currenty][world.currentx],
-			&world,
+			world,
 		)
 	}
 
@@ -591,7 +587,7 @@ game_GameUpdateAndRender :: proc(
 			color: f32 = .5
 			Temp_Pos.AbsTileX = world.Window_Pos.AbsTileX + j
 			Temp_Pos.AbsTileY = world.Window_Pos.AbsTileY + i
-			current_chunk_pos := To_Chunk_Pos(&Temp_Pos)
+			current_chunk_pos := To_Chunk_Pos(&Temp_Pos, world)
 			fmt.println(
 				"Window X:",
 				world.Window_Pos.AbsTileX,
@@ -602,9 +598,9 @@ game_GameUpdateAndRender :: proc(
 				"GameStateAbsY",
 				GameState.Player_Position.AbsTileY,
 				"GameCunkx:",
-				To_Chunk_Pos(&GameState.Player_Position).ChunkX,
+				To_Chunk_Pos(&GameState.Player_Position, world).ChunkX,
 				"GameChunkY",
-				To_Chunk_Pos(&GameState.Player_Position).ChunkY,
+				To_Chunk_Pos(&GameState.Player_Position, world).ChunkY,
 			)
 			if Temp_Pos.AbsTileY == GameState.Player_Position.AbsTileY &&
 			   Temp_Pos.AbsTileX == GameState.Player_Position.AbsTileX {
@@ -613,7 +609,7 @@ game_GameUpdateAndRender :: proc(
 			}
 
 
-			Tileid := Get_Tile_Value(&world, &current_chunk_pos) //tile_map[world.currenty][world.currentx].Tilemap[i * mapcountx + j]
+			Tileid := Get_Tile_Value(world, &current_chunk_pos) //tile_map[world.currenty][world.currentx].Tilemap[i * mapcountx + j]
 			if Tileid == 1 {
 				color = 1.0
 			}
