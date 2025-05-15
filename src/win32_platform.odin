@@ -233,8 +233,8 @@ win32ProcessPendingMessages :: proc(KeyboardController: ^game_controller_input) 
 
 			}
 
-			//NewInput.Controllers[0].padButtons = KBGPtoUse
-			//fmt.println(KBGPtoUse.Down)
+		//NewInput.Controllers[0].padButtons = KBGPtoUse
+		//fmt.println(KBGPtoUse.Down)
 		//fmt.println(KeyboardController)j
 		case:
 			w.TranslateMessage(&msg)
@@ -721,7 +721,7 @@ main :: proc() {
 		GameMemory.Transientstoragesize = mem.Gigabyte * 4
 		GameMemory.Transientstorage = make_multi_pointer(
 			[^]rawptr,
-			GameMemory.Permanentstoragesize,
+			GameMemory.Transientstoragesize,
 			win32Memory.arena_alloc,
 		) //&bmarena
 		fmt.println(size_of(GameMemory.PermanentStorage))
