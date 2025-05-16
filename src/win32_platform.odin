@@ -711,7 +711,7 @@ main :: proc() {
 
 		win32Memory.arena_err = vmem.arena_init_growing(&win32Memory.bmArena)
 		win32Memory.arena_alloc = vmem.arena_allocator(&win32Memory.bmArena)
-		GameMemory.Permanentstoragesize = mem.Megabyte * 0
+		GameMemory.Permanentstoragesize = mem.Megabyte * 12
 		//TODO may have to change this from a multipointer to a slice or something I don't know...
 		GameMemory.PermanentStorage = make_multi_pointer(
 			[^]rawptr,
@@ -724,7 +724,7 @@ main :: proc() {
 			GameMemory.Transientstoragesize,
 			win32Memory.arena_alloc,
 		) //&bmarena
-		fmt.println(size_of(GameMemory.PermanentStorage))
+		fmt.println("Perm Storage: ",size_of(GameMemory.PermanentStorage), GameMemory.Permanentstoragesize)
 		GameMemory.PermanentStorageAlloc = vmem.arena_allocator(&win32Memory.bmArena)
 
 		game_api.init(

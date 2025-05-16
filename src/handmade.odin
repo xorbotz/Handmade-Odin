@@ -7,9 +7,10 @@ import "core:mem"
 
 debug_mode: bool = true
 Game_Mem: ^game_memory
-GameState: game_state
+GameState: ^game_state
 
 world: ^World
+
 mapcountx: i32 : 17
 mapcounty: i32 : 9
 
@@ -96,6 +97,7 @@ Recon_Position :: #force_inline proc(Player_Position: ^global_position, world: ^
 
 game_state :: struct {
 	world:           ^World,
+	arena:           mem_arena,
 	Player_Position: global_position,
 }
 World :: struct {
@@ -219,6 +221,7 @@ DrawRect :: proc(
 	}
 
 }
+
 RenderPlayer :: proc(Buffer: ^game_offscreen_buffer, PlayerX: i32, PlayerY: i32) {
 	SpriteW: i32 = 10
 	Color: u32 = 0xFFFFFFFF
@@ -446,6 +449,25 @@ game_GameGetSoundSamples :: proc(
 	return true
 }
 
+mem_arena :: struct {
+	data: [^]u8,
+	size: u64,
+	used: u64,
+}
+initialize_arena :: proc(arena: ^mem_arena, size: u64, base: rawptr) {
+	arena.size = size
+	arena.data = cast([^]u8)base
+	arena.used = 0
+}
+
+push_Size :: proc(arena: ^mem_arena, size: u64) -> rawptr {
+
+	assert(arena.used + size <= arena.size)
+	res := &arena.data[arena.used]
+	arena.used = arena.used + size
+	return res
+
+}
 @(export)
 game_GameUpdateAndRender :: proc(
 	Thread: ^thread_context,
@@ -456,17 +478,19 @@ game_GameUpdateAndRender :: proc(
 	//TODO Possibly implement the game to be told where in time to put sound
 	Input0: ^game_controller_input = &Input.Controllers[0]
 	Input1: ^game_controller_input = &Input.Controllers[1]
-	//GameState: ^game_state = cast(^game_state)Memory.PermanentStorage
 	// file_name:= "C:/Users/robotics/CLionProjects/Handmade-Odin/src/lol.txt"
 	file_name := "src/lol.txt"
 	file_name_w := "src/test1.txt"
-
+	GameState: ^game_state = cast(^game_state)Memory.PermanentStorage
 
 	if !Memory.isInit {
 		//TODO This should almost certainly just be 1 multipointer but have to cross that bridge later
 		Memory.isInit = true
-		//DeleteFileData(Bitmapdata, Bitmapmemory)
-		GameState.world = new(World, Memory.PermanentStorageAlloc)
+		initialize_arena(&GameState.arena, Memory.Permanentstoragesize, Memory.PermanentStorage)
+		push_Size(&GameState.arena, size_of(game_state))
+		GameState.world = cast(^World)push_Size(&GameState.arena, size_of(World))
+
+		//GameState.world = new(World, Memory.PermanentStorageAlloc) //DeleteFileData(Bitmapdata, Bitmapmemory)
 		world = GameState.world
 		world.TileSideM = 1.4
 		world.TileSidePixels = 70.0
@@ -488,7 +512,10 @@ game_GameUpdateAndRender :: proc(
 		world.LowerLeftStartY = f32(mapcounty) * world.TileSidePixels
 		world.Window_Pos.AbsTileY = 0
 		world.Window_Pos.AbsTileX = 0
-		mappoint: ^[32][32]i32 = new([32][32]i32, Memory.PermanentStorageAlloc)
+		mappoint: ^[32][32]i32 = cast(^[32][32]i32)push_Size(
+			&GameState.arena,
+			size_of([32][32]int),
+		) //new([32][32]i32, Memory.PermanentStorageAlloc)
 
 
 		//TODO May want to move this all to a flattened array - I probably want to just move this to some fixed memory location as well - almost certainly anohtner file just called maps
@@ -552,7 +579,7 @@ game_GameUpdateAndRender :: proc(
 
 	for &controller in Input.Controllers {
 		HandleInput(
-			&GameState,
+			GameState,
 			&controller,
 			Buffer.Height,
 			Buffer.Width,
@@ -588,7 +615,7 @@ game_GameUpdateAndRender :: proc(
 			Temp_Pos.AbsTileX = world.Window_Pos.AbsTileX + j
 			Temp_Pos.AbsTileY = world.Window_Pos.AbsTileY + i
 			current_chunk_pos := To_Chunk_Pos(&Temp_Pos, world)
-			fmt.println(
+			/*fmt.println(
 				"Window X:",
 				world.Window_Pos.AbsTileX,
 				"Window X:",
@@ -601,7 +628,7 @@ game_GameUpdateAndRender :: proc(
 				To_Chunk_Pos(&GameState.Player_Position, world).ChunkX,
 				"GameChunkY",
 				To_Chunk_Pos(&GameState.Player_Position, world).ChunkY,
-			)
+			)*/
 			if Temp_Pos.AbsTileY == GameState.Player_Position.AbsTileY &&
 			   Temp_Pos.AbsTileX == GameState.Player_Position.AbsTileX {
 				fmt.println("Drawing Player")
