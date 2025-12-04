@@ -97,7 +97,7 @@ win32GetSecondsElapsed :: #force_inline proc(Start: w.LARGE_INTEGER, End: w.LARG
 
 }
 
-ReadEntireFile :: proc(filename: string) -> ([]u8, ^[]u8, i64) {
+ReadEntireFile :: proc(filename: string) -> ([^]u8, i64) {
 
 	file_handle, handle := os.open(filename)
 	//file_data,file_ok:=os.read_entire_file_from_filename(filename,gameAlloc^)
@@ -108,14 +108,14 @@ ReadEntireFile :: proc(filename: string) -> ([]u8, ^[]u8, i64) {
 		fmt.println("size: ", file_size)
 		file_data, file_ok := os.read_entire_file_from_handle(file_handle)
 		if file_ok {
-			fileptr: ^[]u8 = new([]u8)
-			fileptr = &file_data
-			return file_data, fileptr, file_size
+			fileptr: [^]u8 = make_multi_pointer([^]u8, file_size, Global_Back_Buffer.arena_alloc)
+			fileptr = cast([^]u8)(&file_data)
+			return fileptr, file_size
 		} else {
 			//TODO maybe free this memory? I have to figure that out.
 		}
 		os.close(file_handle)
-		return nil, nil, -1
+		return nil, -1
 
 	} else {
 		//TODO this might be necessary assert(1==0)
@@ -500,7 +500,7 @@ CopyBufferToWindow :: proc(
 	OffsetY: i32 = 10
 
 
-	//Note Changed BLIT to be 1x1 instead of stretching with the window
+	//Note Changed f to be 1x1 instead of stretching with the window
 	w.StretchDIBits(
 		DevContext,
 		OffsetX,
@@ -711,7 +711,7 @@ main :: proc() {
 
 		win32Memory.arena_err = vmem.arena_init_growing(&win32Memory.bmArena)
 		win32Memory.arena_alloc = vmem.arena_allocator(&win32Memory.bmArena)
-		GameMemory.Permanentstoragesize = mem.Megabyte * 12
+		GameMemory.Permanentstoragesize = mem.Gigabyte * 1
 		//TODO may have to change this from a multipointer to a slice or something I don't know...
 		GameMemory.PermanentStorage = make_multi_pointer(
 			[^]rawptr,
@@ -724,7 +724,11 @@ main :: proc() {
 			GameMemory.Transientstoragesize,
 			win32Memory.arena_alloc,
 		) //&bmarena
-		fmt.println("Perm Storage: ",size_of(GameMemory.PermanentStorage), GameMemory.Permanentstoragesize)
+		fmt.println(
+			"Perm Storage: ",
+			size_of(GameMemory.PermanentStorage),
+			GameMemory.Permanentstoragesize,
+		)
 		GameMemory.PermanentStorageAlloc = vmem.arena_allocator(&win32Memory.bmArena)
 
 		game_api.init(
@@ -1078,6 +1082,7 @@ main :: proc() {
 			}
 			EndCounter: w.LARGE_INTEGER = win32GetWallClock()
 			MSPFrame: f32 = 1000.0 * win32GetSecondsElapsed(LastCounter, win32GetWallClock())
+			fmt.println("FPS: ", 1/(MSPFrame/1000))
 			LastCounter = EndCounter
 
 			DevContext: w.HDC = w.GetDC(GameWindow)
